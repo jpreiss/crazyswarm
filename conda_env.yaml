@@ -14,4 +14,3 @@ dependencies:
   - pyqt
   - sphinx-argparse
   - pytest
-  - attrs==19.1
