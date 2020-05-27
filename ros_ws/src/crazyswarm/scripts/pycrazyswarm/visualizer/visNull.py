@@ -2,7 +2,8 @@
 
 class VisNull:
     def __init__(self):
-        pass
+        # Always false for any key.
+        self.keyState = defaultdict(bool)
 
     def setGraph(self, edges):
         pass
