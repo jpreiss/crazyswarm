@@ -36,7 +36,7 @@ class Crazyswarm:
             crazyflies_yaml = open(crazyflies_yaml, 'r').read()
 
         if args.sim:
-            import crazyflieSim
+            from . import crazyflieSim
             self.timeHelper = crazyflieSim.TimeHelper(args.vis, args.dt, args.writecsv, args.disturbance)
             self.allcfs = crazyflieSim.CrazyflieServer(self.timeHelper, crazyflies_yaml)
         else:
