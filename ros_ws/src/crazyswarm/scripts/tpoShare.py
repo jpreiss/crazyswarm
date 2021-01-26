@@ -84,6 +84,7 @@ def p1(swarm, update_queue, state_queue):
 
         # Get latest optimization information
         if not update_queue.empty():
+            print("p1 getting latest update")
             update_cmd = update_queue.get()
             if update_cmd == "END":
                 for cf in allcfs.crazyflies:
@@ -143,6 +144,7 @@ def p2(state_queue, weights_queue, opt_queue, network, failure_nodes, rand_matri
             current_config = weights['new_config']
             current_weights = weights['new_weights']
         except:
+            print("using existing config and weights")
             current_config = network.adjacency_matrix()
             current_weights = nx.get_node_attributes(network.network, 'weights')
 
@@ -193,6 +195,9 @@ def p2(state_queue, weights_queue, opt_queue, network, failure_nodes, rand_matri
         if count_failures >= len(failure_nodes):
             break
 
+    while not opt_queue.empty():
+        pass
+    print("sending END command")
     opt_queue.put('END')
 
 
@@ -228,7 +233,7 @@ def p3(opt_que, update_queue, weights_queue, network):
     while True:
         # Get latest optimization information
         opt_info = opt_que.get()
-        print("got opt info")
+        print("p3 got opt info")
 
         if opt_info == 'END':
             break
@@ -269,6 +274,8 @@ def p3(opt_que, update_queue, weights_queue, network):
             new_weights = current_weights
         else:
             # do optimization
+            print("running optimization")
+            print(failed_node)
             new_config, new_weights = agent_opt(network.adjacency_matrix(),
                                                 current_weights,
                                                 covariance_data,
