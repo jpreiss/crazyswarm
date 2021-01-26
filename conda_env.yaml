@@ -12,3 +12,10 @@ dependencies:
   - pytest
   - snakeviz
   - scipy
+  - cvxopt
+  - mosek::mosek
+  - networkx
+  - picos::picos
+  - pip
+  - pip:
+    - quadpy==0.12
