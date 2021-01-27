@@ -3,6 +3,7 @@
 // ignore GNU specific compiler attributes
 #define __attribute__(x)
 
+
 %{
 #define SWIG_FILE_WITH_INIT
 #include "collision_avoidance.h"
