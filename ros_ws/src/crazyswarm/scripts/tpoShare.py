@@ -26,8 +26,8 @@ FOV = 5
 CONSENSUS_STEPS = 3
 FLAG_SHOWELLIPSOIDS = False
 
-BOUNDING_BOX_WIDTH = 3  # in x/y directions
-TARGET_HEIGHT = 0.5
+BOUNDING_BOX_WIDTH = 5  # in x/y directions
+TARGET_HEIGHT = 0.3
 TRACKER_MIN_HEIGHT = TARGET_HEIGHT + 2*RADII[2]
 TRACKER_MAX_HEIGHT = 2.25
 GOTO_DURATION = 5.0
@@ -43,6 +43,20 @@ def goCircle(timeHelper, cf, startTime, centerCircle=np.array([0, 0, TARGET_HEIG
         [np.cos(omega * time), np.sin(omega * time), 0])
     errorX = desiredPos - cf.position() 
     cf.cmdVelocityWorld(np.array([vx, vy, 0] + kPosition * errorX), yawRate=0)
+
+def translateCoords(update_coords, mean_target_x, mean_target_y):
+    x = []
+    y = []
+    for drone_id, drone_pos in update_coords.items():
+        x.append(drone_pos[0])
+        y.append(drone_pos[1])
+    mean_tracker_x = np.mean(x)
+    mean_tracker_y = np.mean(y)
+
+    diff_x = mean_tracker_x - mean_target_x
+    diff_y = mean_tracker_y - mean_target_y
+
+    return diff_x, diff_y
 
 
 def p1(swarm, update_queue, state_queue, target_ids, tracker_id_map):
@@ -118,9 +132,28 @@ def p1(swarm, update_queue, state_queue, target_ids, tracker_id_map):
                 timeHelper.sleep(2.0)
                 break
             else:
+                x = []
+                y = []
+                for non_tracker_id in target_ids:
+                    nonTrackerPos = byIdDict[non_tracker_id].position()
+                    x.append(nonTrackerPos[0])
+                    y.append(nonTrackerPos[1])
+                mean_target_x = np.mean(x)
+                mean_target_y = np.mean(y)
+
+                diff_x, diff_y = translateCoords(update_cmd["coords"],
+                                                 mean_target_x, mean_target_y)
+                print('translate by: ')
+                print(diff_x, diff_y)
                 for drone_id, drone_pos in update_cmd["coords"].items():
                     cf_id = inv_tracker_id_map[drone_id]
-                    byIdDict[cf_id].goTo(drone_pos, 0, GOTO_DURATION)
+
+                    translated_pos = np.array([
+                        drone_pos[0] - diff_x,
+                        drone_pos[1] - diff_y,
+                        drone_pos[2]
+                    ])
+                    byIdDict[cf_id].goTo(translated_pos, 0, GOTO_DURATION)
         
         new_state = {}
         for droneId in byIdDict.keys():
@@ -172,6 +205,7 @@ def p2(state_queue, weights_queue, opt_queue, network, target_ids):
 
     # count_failures = 0
     mean_covs = []
+    mean_errors = []
     while True:
         # Get latest positions from position_queue
         # state = state_queue.get()
@@ -204,11 +238,14 @@ def p2(state_queue, weights_queue, opt_queue, network, target_ids):
         nx.set_node_attributes(network.network, current_weights, 'weights')
         nx.set_node_attributes(network.network, nodes, 'node')
 
+        true_targets = []
+
         for i in range(len(target_ids)):
             t_id = target_ids[i]
             target_pos = positions[t_id]
             network.targets[i].state = \
                 np.array([[target_pos[0]], [target_pos[1]], [1], [1]])
+            true_targets.append(network.targets[i])
 
         # set current tracker positions from data in queue
         for id, n in nodes.items():
@@ -286,6 +323,9 @@ def p2(state_queue, weights_queue, opt_queue, network, target_ids):
         for id, n in nodes.items():
             n.after_consensus_update(len(nodes))
 
+        errors = network.calc_errors(true_targets)
+        mean_errors.append(np.mean([v for k, v in errors.items()]))
+
         # Save average covariance
         covs = []
         for id, n in nodes.items():
@@ -293,6 +333,7 @@ def p2(state_queue, weights_queue, opt_queue, network, target_ids):
         mean_covs.append(np.mean(covs))
 
     np.savetxt('save_covs.txt', mean_covs)
+    np.savetxt('save_kf_errors.txt', mean_errors)
 
 
 
@@ -396,14 +437,13 @@ def p3(opt_que, update_queue, weights_queue, network,
             # do formation synthesis step only
             print("running formation synthesis only")
             coords, surv_q = generate_coords(network.adjacency_matrix(),
-                                     positions, fov, Rs,
-                                        # bbox=np.array(
-                                        #     [(-5, 5), (-5, 5), (1.5, 5)]),
-                                        # bbox=np.array(
-                                        #     [(-2.5, 2.5), (-4, 2), (1.5, 5)]),
-                                        bbox=np.array([(min_x, max_x), (min_y, max_y),
-                                                       (TRACKER_MIN_HEIGHT, TRACKER_MAX_HEIGHT)]),
-                                        delta=3, safe_dist=1, connect_dist=2)
+                                             positions, fov, Rs,
+                                             bbox=np.array([(min_x, max_x),
+                                                            (min_y, max_y),
+                                                            (TRACKER_MIN_HEIGHT,
+                                                             TRACKER_MAX_HEIGHT)]),
+                                             delta=3, safe_dist=1, connect_dist=2,
+                                             target_estimate=np.array([[min_x], [min_y]]))
             new_config = network.adjacency_matrix()
             new_weights = current_weights
         else:
@@ -416,25 +456,22 @@ def p3(opt_que, update_queue, weights_queue, network,
                                                 failed_node)
             # do formation synthesis
             coords, surv_q = generate_coords(new_config,
-                                     positions, fov, Rs,
-                                        # bbox=np.array(
-                                        #     [(-5, 5), (-5, 5), (1.5, 5)]),
-                                        # bbox=np.array(
-                                        #     [(-2.5, 2.5), (-4, 2), (1.5, 5)]),
-                                        bbox=np.array([(min_x, max_x), (min_y, max_y),
-                                                       (TRACKER_MIN_HEIGHT, TRACKER_MAX_HEIGHT)]),
-                                        delta=3, safe_dist=1, connect_dist=2)
+                                             positions, fov, Rs,
+                                             bbox=np.array([(min_x, max_x),
+                                                            (min_y, max_y),
+                                                            (
+                                                            TRACKER_MIN_HEIGHT,
+                                                            TRACKER_MAX_HEIGHT)]),
+                                             delta=3, safe_dist=1,
+                                             connect_dist=2,
+                                             target_estimate=np.array(
+                                                 [[min_x], [min_y]]))
             nx.set_node_attributes(network.network, new_weights, 'weights')
 
         print("p3 sending coords")
         send_coords = {}
         for id, c in coords.items():
             send_coords[id] = c
-        # coords = {1: np.array([0., 0., 0]),
-        #           2: np.array([1., 0., 0]),
-        #           3: np.array([2., 0., 0]),
-        #           4: np.array([3., 0., 0])
-        #           }
         print(coords)
         update = {'coords': send_coords}
         update_queue.put(update)
