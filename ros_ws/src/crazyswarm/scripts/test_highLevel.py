@@ -98,6 +98,35 @@ def test_uploadTrajectory_timescale():
     timeHelper.sleep(0.75 * traj.duration)
     assert np.linalg.norm(cf.position() - cf.initialPosition) <= 0.001
 
+def test_uploadTrajectory_relative():
+    allcfs, timeHelper = setUp()
+    cf = allcfs.crazyflies[0]
+
+    traj = uav_trajectory.Trajectory()
+    traj.loadcsv("figure8.csv")
+    trajId = 100
+    cf.uploadTrajectory(trajectoryId=trajId, pieceOffset=0, trajectory=traj)
+
+    cf.takeoff(targetHeight=Z, duration=1.0 + Z)
+    timeHelper.sleep(1.5 + Z)
+    cf.goTo([1, 0, 0], yaw=0.0, duration=2.0)
+    timeHelper.sleep(2.1)
+    cf.startTrajectory(trajId, relative=False)
+    timeHelper.sleep(timeHelper.dt)
+    # Since the figure-8 starts at zero and relative=False, we should have
+    # snapped back there (due to physical unrealism) even though we started
+    # from far away.
+    assert np.linalg.norm(cf.position()) < 0.001
+    timeHelper.sleep(traj.duration)
+
+    cf.goTo([1, 0, 0], yaw=0.0, duration=2.0)
+    timeHelper.sleep(2.1)
+    cf.startTrajectory(trajId, relative=True)
+    timeHelper.sleep(timeHelper.dt)
+    # Since relative=True, we should have only moved a little bit, even though
+    # the figure-8 starts at zero.
+    assert np.linalg.norm(cf.position() - [1, 0, 0]) < 0.001
+
 def test_uploadTrajectory_fig8Bounds():
     allcfs, timeHelper = setUp()
     cf = allcfs.crazyflies[0]
@@ -165,14 +194,14 @@ def test_setGroupMask():
     cf1.setGroupMask(2)
     allcfs.takeoff(targetHeight=Z, duration=1.0 + Z, groupMask = 1)
     timeHelper.sleep(1.5+Z)
-    
+
     pos0 = cf0.initialPosition + np.array([0, 0, Z])
-    assert np.all(np.isclose(cf0.position(), pos0, atol=0.0001)) 
-    assert np.all(np.isclose(cf1.position(), cf1.initialPosition, atol=0.0001)) 
+    assert np.all(np.isclose(cf0.position(), pos0, atol=0.0001))
+    assert np.all(np.isclose(cf1.position(), cf1.initialPosition, atol=0.0001))
 
     allcfs.takeoff(targetHeight=Z, duration=1.0 + Z, groupMask = 2)
     timeHelper.sleep(1.5+Z)
 
     pos1 = cf1.initialPosition + np.array([0, 0, Z])
-    assert np.all(np.isclose(cf0.position(), pos0, atol=0.0001)) 
-    assert np.all(np.isclose(cf1.position(), pos1, atol=0.0001)) 
+    assert np.all(np.isclose(cf0.position(), pos0, atol=0.0001))
+    assert np.all(np.isclose(cf1.position(), pos1, atol=0.0001))

@@ -287,16 +287,7 @@ class Crazyflie:
             traj = self.trajectories[trajectoryId]
             traj.t_begin = self.time()
             traj.timescale = timescale
-            if relative:
-                traj.shift = firm.vzero()
-                if reverse:
-                    traj_init = firm.piecewise_eval_reversed(traj, traj.t_begin)
-                else:
-                    traj_init = firm.piecewise_eval(traj, traj.t_begin)
-                traj.shift = self.state.pos - traj_init.pos
-            else:
-                traj.shift = firm.vzero()
-            firm.plan_start_trajectory(self.planner, traj, reverse)
+            firm.plan_start_trajectory(self.planner, traj, reverse, relative, start_from=self.state.pos)
 
     def notifySetpointsStop(self, remainValidMillisecs=100):
         # No-op - the real Crazyflie prioritizes streaming setpoints over
