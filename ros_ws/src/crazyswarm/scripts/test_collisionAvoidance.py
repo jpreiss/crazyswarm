@@ -36,14 +36,13 @@ def test_velocityMode_sidestepWorstCase(args=None):
     a.enableCollisionAvoidance([b], RADII)
     b.enableCollisionAvoidance([a], RADII)
 
-    a.cmdVelocityWorld([1.0, 0.0, 0.0], yawRate=0.0)
-    b.cmdVelocityWorld([-1.0, 0.0, 0.0], yawRate=0.0)
-
     while timeHelper.time() < 10.0:
         positions = np.stack([a.position(), b.position()])
         collisions = check_ellipsoid_collisions(positions, RADII)
         assert not np.any(collisions)
 
+        a.cmdVelocityWorld([1.0, 0.0, 0.0], yawRate=0.0)
+        b.cmdVelocityWorld([-1.0, 0.0, 0.0], yawRate=0.0)
         timeHelper.sleep(timeHelper.dt)
         if a.position()[0] > 1.0 and b.position()[0] < -1.0:
             return
@@ -99,7 +98,7 @@ def test_goToWithCA_CheckDestination():
     goal1 = [-1.0, 0.0, 1.0]
     cf0.goTo(goal0, 0, 5.0)
     cf1.goTo(goal1, 0, 5.0)
-    timeHelper.sleep(5)
+    timeHelper.sleep(6)
     assert np.all(np.isclose(cf0.position(), goal0))
     assert np.all(np.isclose(cf1.position(), goal1))
 
@@ -227,13 +226,13 @@ def test_cmdPosition():
 
     goal0 = np.array([1.0, 0.0, 2.0])
     goal1 = np.array([-1.0, 0.0, 2.0])
-    cf0.cmdPosition(goal0, yaw=0.0)
-    cf1.cmdPosition(goal1, yaw=0.0)
     while timeHelper.time() < 10.0:
         positions = np.stack([cf0.position(), cf1.position()])
         collisions = check_ellipsoid_collisions(positions, RADII)
         assert not np.any(collisions)
 
+        cf0.cmdPosition(goal0, yaw=0.0)
+        cf1.cmdPosition(goal1, yaw=0.0)
         timeHelper.sleep(timeHelper.dt)
     assert np.all(np.isclose(cf0.position(), goal0))
     assert np.all(np.isclose(cf1.position(), goal1))
@@ -254,11 +253,11 @@ def test_boundingBox():
 
     goal0 = np.array([BBOXMAX[0] - 1, 0.0, Z])
     goal1 = np.array([BBOXMIN[0] - 1, 0.0, Z])
-    cf0.cmdPosition(goal0, yaw=0.0)
-    cf1.cmdPosition(goal1, yaw=0.0)
     while timeHelper.time() < 10.0:
         assert np.all(cf1.position() >= BBOXMIN)
         assert np.all(cf1.position() <= BBOXMAX)
+        cf0.cmdPosition(goal0, yaw=0.0)
+        cf1.cmdPosition(goal1, yaw=0.0)
         timeHelper.sleep(timeHelper.dt)
 
     assert np.all(np.isclose(cf0.position(), goal0))
@@ -277,9 +276,9 @@ def test_maxSpeed_zero():
 
     goal0 = np.array([1.0, 0.0, Z])
     goal1 = np.array([-1.0, 0.0, Z])
-    cf0.cmdPosition(goal0, yaw=0.0)
-    cf1.cmdPosition(goal1, yaw=0.0)
     while timeHelper.time() < 10.0:
+        cf0.cmdPosition(goal0, yaw=0.0)
+        cf1.cmdPosition(goal1, yaw=0.0)
         timeHelper.sleep(timeHelper.dt)
         assert np.all(cf0.velocity() == np.zeros(3))
         assert np.all(cf1.velocity() == np.zeros(3))
@@ -298,12 +297,11 @@ def test_maxSpeed_limit():
     cf0.enableCollisionAvoidance([cf1], RADII, maxSpeed=1.0)
     cf1.enableCollisionAvoidance([cf0], RADII, maxSpeed=3.0)
 
-    cf0.cmdVelocityWorld([2.0, 0.0, 0.0], yawRate=0.0)
-    cf1.cmdVelocityWorld([-2.0, 0.0, 0.0], yawRate=0.0)
-
     while timeHelper.time() < 10.0:
         assert np.all(np.abs(cf0.velocity()) < 1.2 * np.ones(3))
         assert np.all(np.abs(cf1.velocity()) < 3.2 * np.ones(3))
+        cf0.cmdVelocityWorld([2.0, 0.0, 0.0], yawRate=0.0)
+        cf1.cmdVelocityWorld([-2.0, 0.0, 0.0], yawRate=0.0)
         timeHelper.sleep(timeHelper.dt)
         if cf0.position()[0] > 2.0 and cf1.position()[0] < -2.0:
             return

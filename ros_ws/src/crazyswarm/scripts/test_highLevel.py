@@ -42,7 +42,7 @@ def test_goTo_nonRelative():
     allcfs, timeHelper = setUp()
     allcfs.takeoff(targetHeight=Z, duration=1.0+Z)
     timeHelper.sleep(1.5+Z)
-    
+
     for cf in allcfs.crazyflies:
         pos = np.array(cf.initialPosition) + np.array([1, 1, Z])
         cf.goTo(pos, 0, 1.0)
@@ -70,7 +70,7 @@ def test_landing():
     timeHelper.sleep(1.5+Z)
 
     allcfs.land(targetHeight=0.02, duration=1.0+Z)
-    timeHelper.sleep(1.0+Z)
+    timeHelper.sleep(2.5+Z)
 
     for cf in allcfs.crazyflies:
         pos = cf.initialPosition + np.array([0, 0, 0.02])

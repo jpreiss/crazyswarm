@@ -16,6 +16,7 @@ include = [
 
 modules = [
     "collision_avoidance.c",
+    "libcommander.c",
     "planner.c",
     "pptraj.c",
     "pptraj_compressed.c",

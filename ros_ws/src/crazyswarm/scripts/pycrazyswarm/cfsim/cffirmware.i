@@ -6,6 +6,7 @@
 %{
 #define SWIG_FILE_WITH_INIT
 #include "collision_avoidance.h"
+#include "libcommander.h"
 #include "math3d.h"
 #include "pptraj.h"
 #include "planner.h"
@@ -13,11 +14,13 @@
 %}
 
 %include "collision_avoidance.h"
+%include "libcommander.h"
 %include "math3d.h"
 %include "pptraj.h"
 %include "planner.h"
 %include "stabilizer_types.h"
 
+%include "stdint.i"
 %include "numpy.i"
 
 
@@ -54,6 +57,12 @@ struct vec3_s svec2vec(struct vec v)
 {
   struct vec3_s vv = { .x = v.x, .y = v.y, .z = v.z, };
   return vv;
+}
+
+setpoint_t uninitializedSetpoint()
+{
+    setpoint_t sp;
+    return sp;
 }
 
 void collisionAvoidanceUpdateSetpointWrap(
@@ -136,4 +145,8 @@ structname(struct structname const *x) { \
 
 %extend traj_eval {
     COPY_CTOR(traj_eval)
+};
+
+%extend setpoint_s {
+    COPY_CTOR(setpoint_s)
 };

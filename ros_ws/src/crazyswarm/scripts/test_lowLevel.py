@@ -21,8 +21,9 @@ def test_cmdFullState_zeroVel():
     cf = allcfs.crazyflies[0]
 
     pos = np.array(cf.initialPosition) + np.array([1, 1, Z])
-    cf.cmdFullState(pos, np.zeros(3), np.zeros(3), 0, np.zeros(3))
-    timeHelper.sleep(1.0)
+    for _ in range(10):
+        cf.cmdFullState(pos, np.zeros(3), np.zeros(3), 0, np.zeros(3))
+        timeHelper.sleep(0.1)
 
     assert np.all(np.isclose(cf.position(), pos))
 
@@ -31,8 +32,9 @@ def test_cmdPosition():
     cf = allcfs.crazyflies[0]
 
     pos = np.array(cf.initialPosition) + np.array([1, 1, Z])
-    cf.cmdPosition(pos,yaw=0.0)
-    timeHelper.sleep(1.0)
+    for _ in range(10):
+        cf.cmdPosition(pos, yaw=0.0)
+        timeHelper.sleep(0.1)
 
     assert np.all(np.isclose(cf.position(), pos))
 
@@ -41,18 +43,21 @@ def test_cmdVelocityWorld_checkVelocity():
     
     cf = allcfs.crazyflies[0]
     vel = np.ones(3)
-    cf.cmdVelocityWorld(vel, yawRate=0)
-    timeHelper.sleep(1.0)
+    for _ in range(10):
+        cf.cmdVelocityWorld(vel, yawRate=0)
+        timeHelper.sleep(0.1)
 
     assert np.all(np.isclose(cf.velocity(), vel))
-    
+
 def test_cmdVelocityWorld_checkIntegrate():
     allcfs, timeHelper = setUp()
 
     cf = allcfs.crazyflies[0]
     vel = np.ones(3)
     cf.cmdVelocityWorld(vel, yawRate=0)
-    timeHelper.sleep(1.0)
+    for _ in range(10):
+        cf.cmdVelocityWorld(vel, yawRate=0)
+        timeHelper.sleep(0.1)
 
     pos = cf.initialPosition + vel
     assert np.all(np.isclose(cf.position(), pos))
@@ -70,8 +75,9 @@ def test_cmdVelocityWorld_disturbance():
     cf = swarm.allcfs.crazyflies[0]
 
     vel = np.ones(3)
-    cf.cmdVelocityWorld(vel, yawRate=0)
-    timeHelper.sleep(1.0)
+    for _ in range(10):
+        cf.cmdVelocityWorld(vel, yawRate=0)
+        timeHelper.sleep(0.1)
 
     pos = cf.initialPosition + vel
     assert not np.any(np.isclose(cf.position(), pos))
@@ -81,15 +87,15 @@ def test_sleepResidual():
     np.random.seed(0)
     TRIALS = 100
     for _ in range(TRIALS):
-        dtTick = 10 ** np.random.uniform(-2, 0)
-        dtSleep = 10 ** np.random.uniform(-2, 0)
+        dtTick = 10 ** np.random.uniform(-2, -1)
+        dtSleep = 10 ** np.random.uniform(-2, -1)
         allcfs, timeHelper = setUp("--dt {}".format(dtTick))
 
         cf = allcfs.crazyflies[0]
         vel = np.ones(3)
-        cf.cmdVelocityWorld(vel, yawRate=0)
         time = 0.0
         while timeHelper.time() < 1.0:
+            cf.cmdVelocityWorld(vel, yawRate=0)
             timeHelper.sleep(dtSleep)
             time += dtSleep
 
