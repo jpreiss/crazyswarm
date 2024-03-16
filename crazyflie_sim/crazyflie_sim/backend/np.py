@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.linalg import norm
 import rowan
 
 from ..sim_data_types import Action, State
@@ -36,6 +37,12 @@ class Quadrotor:
         else:
             self.inv_J = 1 / self.J  # diagonal matrix -> division
 
+        # solve for the quadratic drag coefficient based on empirical data
+        THRUST_WEIGHT = 2.0
+        TOP_SPEED = 10.0
+        forward_thrust = self.mass * self.g * np.sqrt(THRUST_WEIGHT - 1)
+        self.drag_linear = forward_thrust / (TOP_SPEED ** 2)
+
         self.state = state
 
     def step(self, action, dt, f_a=np.zeros(3)):
@@ -50,8 +57,9 @@ class Quadrotor:
 
         force = rpm_to_force(action.rpm)
 
-        linear_damping = -0.01 * np.linalg.norm(self.state.vel) * self.state.vel
-        angular_damping = -0.01 * np.linalg.norm(self.state.omega) * self.state.omega
+        vel = self.state.vel
+        linear_damping = -self.drag_linear * norm(self.state.vel) * self.state.vel
+        angular_damping = -0.01 * norm(self.state.omega) * self.state.omega
 
         # compute next state
         eta = np.dot(self.B0, force)
