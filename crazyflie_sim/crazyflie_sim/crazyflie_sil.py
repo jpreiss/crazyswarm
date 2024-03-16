@@ -81,6 +81,7 @@ class CrazyflieSIL:
         self.motors_thrust_pwm = firm.motors_thrust_pwm_t()
 
         self.controller_name = controller_name
+        self.ticks = 0
 
         # set up controller
         if controller_name == 'none':
@@ -299,9 +300,9 @@ class CrazyflieSIL:
         if self.mode == CrazyflieSIL.MODE_IDLE:
             return sim_data_types.Action([0, 0, 0, 0])
 
-        time_in_seconds = self.time_func()
-        # ticks is essentially the time in milliseconds as an integer
-        tick = int(time_in_seconds * 1000)
+        tick = self.ticks
+        self.ticks += 1
+
         if self.controller_name != 'mellinger':
             self.controller(self.control, self.setpoint, self.sensors, self.state, tick)
         else:
