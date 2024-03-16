@@ -9,6 +9,10 @@ from crazyflie_sim.backend.np import Quadrotor
 from crazyflie_sim.sim_data_types import State
 
 
+def norm2(x):
+    return np.sum(x ** 2)
+
+
 def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     HZ = 1000
 
@@ -23,10 +27,12 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     period = 8.0
     omega = 2 * np.pi / period
 
-    T = int(3 * period * HZ) + 1
+    repeats = 4
+    T = int(repeats * period * HZ / 2) + 1
 
     state_log = []
     target_log = []
+    cost_log = []
 
     # setpoint
     pos = np.zeros(3)
@@ -45,18 +51,28 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         acc[2] = -radius * (omega ** 2) * np.sin(omega * tsec)
         state_log.append(deepcopy(sim.state))
         target_log.append(State(pos=pos, vel=vel))
+        # TODO: control cost!!!
+        cost_log.append(
+            0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
+            + 0.5 * cf.mellinger_control.gaps_Qv * norm2(vel - sim.state.vel)
+        )
         cf.setState(sim.state)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
+
+        # Mellinger expects to run at 500 Hz.
         action = cf.executeController()
-        f_disturb = np.zeros(3)
-        sim.step(action, 1.0 / HZ, f_disturb)
         ticks += 1
+        cf.executeController()
+        ticks += 1
+
+        f_disturb = np.zeros(3)
+        sim.step(action, 2.0 / HZ, f_disturb)
 
     print("kp_xy:", cf.mellinger_control.gaps.kp_xy)
     print("kp_z:", cf.mellinger_control.gaps.kp_z)
     print("kd_xy:", cf.mellinger_control.gaps.kd_xy)
     print("kd_z:", cf.mellinger_control.gaps.kd_z)
-    return state_log, target_log
+    return state_log, target_log, cost_log
 
 
 def main():
@@ -67,24 +83,39 @@ def main():
         for _ in range(2)
     ]
     for cf in cfs:
-        # cf.mellinger_control.ki_xy = 0
-        # cf.mellinger_control.ki_z = 0
-        cf.mellinger_control.kd_xy = 5
-        cf.mellinger_control.gaps.kd_xy = 5
+        cf.mellinger_control.ki_xy = 0
+        cf.mellinger_control.ki_z = 0
+        cf.mellinger_control.kd_xy *= 10
+        cf.mellinger_control.gaps.kd_xy = cf.mellinger_control.kd_xy
+        cf.mellinger_control.kR_xy *= 1.5
+        cf.mellinger_control.mass = Quadrotor(State()).mass
+
     cfs[1].mellinger_control.gaps_enable = True
     cfs[1].mellinger_control.gaps_eta = 1e-1
+    cfs[1].mellinger_control.gaps_R = 0
+
     results = [
         rollout(Quadrotor(State()), cf)
         for cf in cfs
     ]
+
     state_logs = [results[0][0], results[1][0], results[1][1]]
+    cost_logs = [results[0][2], results[1][2]]
     names = ["default", "GAPS", "target"]
 
-    fig, axs = plt.subplots(2, 1, figsize=(6, 6), constrained_layout=True)
+    fig, axs = plt.subplots(4, 1, figsize=(6, 9), constrained_layout=True)
     for log, name in zip(state_logs, names):
         for subplot, coord in zip(axs, [0, 2]):
             coords = [s.pos[coord] for s in log]
             subplot.plot(coords, label=name)
+    for log, name in zip(cost_logs, names):
+        axs[2].plot(log, label=name)
+    for log, name in zip(cost_logs, names):
+        axs[3].plot(np.cumsum(log), label=name)
+    axs[0].set(ylabel="x")
+    axs[1].set(ylabel="z")
+    axs[2].set(ylabel="cost")
+    axs[3].set(ylabel="cumulative cost")
     for ax in axs:
         ax.legend()
     fig.savefig("gaps_cf.pdf")
