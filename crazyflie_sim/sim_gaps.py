@@ -66,9 +66,11 @@ def main():
         CrazyflieSIL("", np.zeros(3), "mellinger", lambda: 0)
         for _ in range(2)
     ]
-    # for cf in cfs:
-    #     cf.mellinger_control.ki_xy = 0
-    #     cf.mellinger_control.ki_z = 0
+    for cf in cfs:
+        # cf.mellinger_control.ki_xy = 0
+        # cf.mellinger_control.ki_z = 0
+        cf.mellinger_control.kd_xy = 5
+        cf.mellinger_control.gaps.kd_xy = 5
     cfs[1].mellinger_control.gaps_enable = True
     cfs[1].mellinger_control.gaps_eta = 1e-1
     results = [
