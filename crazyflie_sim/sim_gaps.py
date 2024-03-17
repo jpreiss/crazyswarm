@@ -23,11 +23,6 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     HZ = 1000
 
     ticks = 0
-    def time_func():
-        nonlocal ticks
-        return ticks / float(HZ)
-    # HACK!!!
-    cf.time_func = time_func
 
     radius = 1.0
     period = 10.0
@@ -49,7 +44,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     angvel = np.zeros(3)
 
     for t in range(T):
-        tsec = time_func()
+        tsec = ticks / HZ
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
         vel[0] = -radius * omega * np.sin(omega * tsec)
@@ -71,9 +66,8 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
 
         # Mellinger expects to run at 500 Hz.
         action = cf.executeController()
-        ticks += 1
         cf.executeController()
-        ticks += 1
+        ticks += 2
 
         f_disturb = np.zeros(3)
         sim.step(action, 2.0 / HZ, f_disturb)
