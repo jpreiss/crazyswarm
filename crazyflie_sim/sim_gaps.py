@@ -14,6 +14,11 @@ def norm2(x):
     return np.sum(x ** 2)
 
 
+PARAM_ATTRS = [
+    p + s for p, s in it.product(["kp_", "kd_", "ki_"], ["xy", "z"])
+]
+
+
 def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     HZ = 1000
 
@@ -34,6 +39,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     state_log = []
     target_log = []
     cost_log = []
+    param_log = []
 
     # setpoint
     pos = np.zeros(3)
@@ -60,6 +66,9 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         cf.setState(sim.state)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
 
+        theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
+        param_log.append(theta)
+
         # Mellinger expects to run at 500 Hz.
         action = cf.executeController()
         ticks += 1
@@ -69,13 +78,9 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         f_disturb = np.zeros(3)
         sim.step(action, 2.0 / HZ, f_disturb)
 
-    for prefix, suffix in it.product(["kp_", "kd_", "ki_"], ["xy", "z"]):
-        k = prefix + suffix
-        v = getattr(cf.mellinger_control.gaps, k)
-        print(f"{k}: {v}")
     print()
 
-    return state_log, target_log, cost_log
+    return state_log, target_log, cost_log, param_log
 
 
 def main():
@@ -121,6 +126,14 @@ def main():
     for ax in axs:
         ax.legend()
     fig.savefig("gaps_cf.pdf")
+
+    param_logs = np.stack(results[1][3])
+    T, theta_dim = param_logs.shape
+    fig, axs = plt.subplots(theta_dim, 1, figsize=(2 * theta_dim, 9), constrained_layout=True)
+    for trace, ax, name in zip(param_logs.T, axs, PARAM_ATTRS):
+        ax.plot(trace)
+        ax.set_ylabel(name)
+    fig.savefig("gaps_cf_params.pdf")
 
 
 if __name__ == "__main__":
