@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.linalg import norm
-import rowan
 
 from ..sim_data_types import Action, State
+import fastrowan as rowan
 
 
 class Quadrotor:

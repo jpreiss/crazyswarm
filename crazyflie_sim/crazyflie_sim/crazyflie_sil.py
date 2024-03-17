@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import cffirmware as firm
 import numpy as np
-import rowan
 
 from . import sim_data_types
+import fastrowan as rowan
 
 
 class TrajectoryPolynomialPiece:
