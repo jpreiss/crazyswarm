@@ -31,6 +31,8 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     repeats = 4
     T = int(repeats * period * HZ / 2) + 1
 
+    sim.state.vel[2] = radius * omega
+
     state_log = []
     target_log = []
     cost_log = []
