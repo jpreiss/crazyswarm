@@ -104,19 +104,22 @@ def main():
     cost_logs = [results[0][2], results[1][2]]
     names = ["default", "GAPS", "target"]
 
-    fig, axs = plt.subplots(4, 1, figsize=(9, 9), constrained_layout=True)
+    fig, axs = plt.subplots(6, 1, figsize=(15, 9), constrained_layout=True)
     for log, name in zip(state_logs, names):
         for subplot, coord in zip(axs, [0, 2]):
             coords = [s.pos[coord] for s in log]
             subplot.plot(coords, label=name)
+            subplot.set(ylabel=["x", "y", "z"][coord])
+        for subplot, coord in zip(axs[2:4], [0, 2]):
+            coords = [s.vel[coord] for s in log]
+            subplot.plot(coords, label=name)
+            subplot.set(ylabel="v" + ["x", "y", "z"][coord])
     for log, name in zip(cost_logs, names):
-        axs[2].plot(log, label=name)
+        axs[-2].plot(log, label=name)
     for log, name in zip(cost_logs, names):
-        axs[3].plot(np.cumsum(log), label=name)
-    axs[0].set(ylabel="x")
-    axs[1].set(ylabel="z")
-    axs[2].set(ylabel="cost")
-    axs[3].set(ylabel="cumulative cost")
+        axs[-1].plot(np.cumsum(log), label=name)
+    axs[-2].set(ylabel="cost")
+    axs[-1].set(ylabel="cumulative cost")
     for ax in axs:
         ax.legend()
     fig.savefig("gaps_cf.pdf")
