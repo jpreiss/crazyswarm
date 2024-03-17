@@ -1,4 +1,5 @@
 from copy import copy, deepcopy
+import itertools as it
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,7 +28,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     period = 5.0
     omega = 2 * np.pi / period
 
-    repeats = 6
+    repeats = 8
     T = int(repeats * period * HZ / 2) + 1
 
     state_log = []
@@ -68,10 +69,12 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         f_disturb = np.zeros(3)
         sim.step(action, 2.0 / HZ, f_disturb)
 
-    print("kp_xy:", cf.mellinger_control.gaps.kp_xy)
-    print("kp_z:", cf.mellinger_control.gaps.kp_z)
-    print("kd_xy:", cf.mellinger_control.gaps.kd_xy)
-    print("kd_z:", cf.mellinger_control.gaps.kd_z)
+    for prefix, suffix in it.product(["kp_", "kd_", "ki_"], ["xy", "z"]):
+        k = prefix + suffix
+        v = getattr(cf.mellinger_control.gaps, k)
+        print(f"{k}: {v}")
+    print()
+
     return state_log, target_log, cost_log
 
 
@@ -83,15 +86,14 @@ def main():
         for _ in range(2)
     ]
     for cf in cfs:
-        #cf.mellinger_control.ki_xy = 0
-        #cf.mellinger_control.ki_z = 0
-        cf.mellinger_control.kd_xy *= 10
+        cf.mellinger_control.kd_xy *= 8
         cf.mellinger_control.gaps.kd_xy = cf.mellinger_control.kd_xy
         cf.mellinger_control.kR_xy *= 2
         cf.mellinger_control.mass = Quadrotor(State()).mass
 
     cfs[1].mellinger_control.gaps_enable = True
-    cfs[1].mellinger_control.gaps_eta = 1e-2
+    cfs[1].mellinger_control.gaps_eta = 1e-3
+    cfs[1].mellinger_control.gaps_Qv *= 0.1
     cfs[1].mellinger_control.gaps_R = 0
 
     results = [
@@ -103,7 +105,7 @@ def main():
     cost_logs = [results[0][2], results[1][2]]
     names = ["default", "GAPS", "target"]
 
-    fig, axs = plt.subplots(4, 1, figsize=(6, 9), constrained_layout=True)
+    fig, axs = plt.subplots(4, 1, figsize=(9, 9), constrained_layout=True)
     for log, name in zip(state_logs, names):
         for subplot, coord in zip(axs, [0, 2]):
             coords = [s.pos[coord] for s in log]
