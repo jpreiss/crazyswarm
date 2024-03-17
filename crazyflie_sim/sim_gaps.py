@@ -95,11 +95,11 @@ def main():
         cf.mellinger_control.gaps.kd_xy = cf.mellinger_control.kd_xy
         cf.mellinger_control.kR_xy *= 2
         cf.mellinger_control.mass = Quadrotor(State()).mass
+        cf.mellinger_control.gaps_Qv *= 0.1
+        cf.mellinger_control.gaps_R = 0
 
     cfs[1].mellinger_control.gaps_enable = True
     cfs[1].mellinger_control.gaps_eta = 1e-3
-    cfs[1].mellinger_control.gaps_Qv *= 0.1
-    cfs[1].mellinger_control.gaps_R = 0
 
     results = [
         rollout(Quadrotor(State()), cf)
