@@ -29,11 +29,11 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     # HACK!!!
     cf.time_func = time_func
 
-    radius = 0.7
-    period = 5.0
+    radius = 1.0
+    period = 10.0
     omega = 2 * np.pi / period
 
-    repeats = 8
+    repeats = 4
     T = int(repeats * period * HZ / 2) + 1
 
     state_log = []
@@ -51,11 +51,11 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     for t in range(T):
         tsec = time_func()
         pos[0] = radius * np.cos(omega * tsec) - radius
-        pos[2] = radius * np.sin(omega * tsec)
+        pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
         vel[0] = -radius * omega * np.sin(omega * tsec)
-        vel[2] = radius * omega * np.cos(omega * tsec)
+        vel[2] = radius * 1 * omega * np.cos(2 * omega * tsec)
         acc[0] = -radius * (omega ** 2) * np.cos(omega * tsec)
-        acc[2] = -radius * (omega ** 2) * np.sin(omega * tsec)
+        acc[2] = -radius * 2 * (omega ** 2) * np.sin(2 * omega * tsec)
         state_log.append(deepcopy(sim.state))
         target_log.append(State(pos=pos, vel=vel))
         # TODO: control cost!!!
