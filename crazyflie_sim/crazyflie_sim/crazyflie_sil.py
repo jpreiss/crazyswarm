@@ -331,7 +331,8 @@ class CrazyflieSIL:
             if pwm < 10000:
                 return 0
             p = [3.26535711e-01, 3.37495115e+03]
-            return np.polyval(p, pwm)
+            #return np.polyval(p, pwm)
+            return p[0] * pwm + p[1]
 
         def pwm_to_force(pwm):
             # polyfit using data and scripts from https://github.com/IMRCLab/crazyflie-system-id

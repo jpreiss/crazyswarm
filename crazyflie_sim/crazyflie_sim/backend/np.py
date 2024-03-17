@@ -5,6 +5,11 @@ from numpy.linalg import norm
 
 from ..sim_data_types import Action, State
 import fastrowan as rowan
+from cffirmware import mkvec, vcross
+
+
+def cross(a, b):
+    return np.array(vcross(mkvec(*a), mkvec(*b)))
 
 
 class Quadrotor:
@@ -86,7 +91,7 @@ class Quadrotor:
 
         # mJ = Jw x w + tau_u
         omega_next = self.state.omega + (
-            self.inv_J * (angular_damping + np.cross(self.J * self.state.omega, self.state.omega) + tau_u)) * dt
+            self.inv_J * (angular_damping + cross(self.J * self.state.omega, self.state.omega) + tau_u)) * dt
 
         self.state.pos = pos_next
         self.state.vel = vel_next
