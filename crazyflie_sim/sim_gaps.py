@@ -23,11 +23,11 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     # HACK!!!
     cf.time_func = time_func
 
-    radius = 2.0
-    period = 8.0
+    radius = 0.7
+    period = 5.0
     omega = 2 * np.pi / period
 
-    repeats = 4
+    repeats = 6
     T = int(repeats * period * HZ / 2) + 1
 
     state_log = []
@@ -91,7 +91,7 @@ def main():
         cf.mellinger_control.mass = Quadrotor(State()).mass
 
     cfs[1].mellinger_control.gaps_enable = True
-    cfs[1].mellinger_control.gaps_eta = 1e-3
+    cfs[1].mellinger_control.gaps_eta = 1e-2
     cfs[1].mellinger_control.gaps_R = 0
 
     results = [
