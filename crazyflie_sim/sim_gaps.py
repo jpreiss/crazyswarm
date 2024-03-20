@@ -31,6 +31,9 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     repeats = 4
     T = int(repeats * period * HZ / 2) + 1
 
+    rng = np.random.default_rng(0)
+    w = 1e-2 * rng.normal(size=(T, 3))
+
     sim.state.vel[2] = radius * omega
 
     state_log = []
@@ -71,7 +74,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         cf.executeController()
         ticks += 2
 
-        f_disturb = np.zeros(3)
+        f_disturb = w[t]
         sim.step(action, 2.0 / HZ, f_disturb)
 
     print()
