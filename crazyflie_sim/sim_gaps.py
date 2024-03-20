@@ -25,10 +25,10 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     ticks = 0
 
     radius = 1.0
-    period = 10.0
+    period = 6.0
     omega = 2 * np.pi / period
 
-    repeats = 8
+    repeats = 6
     T = int(repeats * period * HZ) + 1
 
     rng = np.random.default_rng(0)
@@ -103,7 +103,7 @@ def main():
         cf.mellinger_control.gaps_R = 0
 
     cfs[1].mellinger_control.gaps_enable = True
-    cfs[1].mellinger_control.gaps_eta = 1e-3
+    cfs[1].mellinger_control.gaps_eta = 1e-2
 
     results = [
         rollout(Quadrotor(State()), cf)
@@ -112,11 +112,12 @@ def main():
 
     state_logs = [results[0][0], results[1][0], results[1][1]]
     cost_logs = [results[0][2], results[1][2]]
+    cost_logs = [np.array(a) for a in cost_logs]
     names = ["default", "GAPS", "target"]
 
     t = np.arange(len(state_logs[0])) / HZ
 
-    fig, axs = plt.subplots(6, 1, figsize=(15, 9), constrained_layout=True)
+    fig, axs = plt.subplots(7, 1, figsize=(15, 12), constrained_layout=True)
     for log, name in zip(state_logs, names):
         for subplot, coord in zip(axs, [0, 2]):
             coords = [s.pos[coord] for s in log]
@@ -127,11 +128,13 @@ def main():
             subplot.plot(t, coords, label=name)
             subplot.set(ylabel="v" + ["x", "y", "z"][coord])
     for log, name in zip(cost_logs, names):
-        axs[-2].plot(t, log, label=name)
+        axs[-3].plot(t, log, label=name)
     for log, name in zip(cost_logs, names):
-        axs[-1].plot(t, np.cumsum(log), label=name)
-    axs[-2].set(ylabel="cost")
-    axs[-1].set(ylabel="cumulative cost")
+        axs[-2].plot(t, np.cumsum(log), label=name)
+    axs[-1].plot(t, np.cumsum(cost_logs[1] - cost_logs[0]))
+    axs[-3].set(ylabel="cost")
+    axs[-2].set(ylabel="cumulative cost")
+    axs[-1].set(ylabel="cum. cost difference")
     for ax in axs:
         ax.legend()
     fig.savefig("gaps_cf.pdf")
