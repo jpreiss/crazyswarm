@@ -40,6 +40,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     target_log = []
     cost_log = []
     param_log = []
+    action_log = []
 
     # setpoint
     pos = np.zeros(3)
@@ -69,17 +70,24 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
         param_log.append(theta)
 
-        # Mellinger expects to run at 500 Hz.
         action = cf.executeController()
-        cf.executeController()
+        action_arr = list(action.rpm) + [
+            cf.mellinger_control.cmd_roll,
+            cf.mellinger_control.cmd_pitch,
+            cf.mellinger_control.cmd_yaw,
+            cf.mellinger_control.cmd_thrust,
+        ]
+        action_log.append(action_arr)
+
+        # Mellinger expects to run at 500 Hz.
+        action2 = cf.executeController()
+        assert action2.rpm == action.rpm
         ticks += 2
 
         f_disturb = w[t]
         sim.step(action, 2.0 / HZ, f_disturb)
 
-    print()
-
-    return state_log, target_log, cost_log, param_log
+    return state_log, target_log, cost_log, param_log, action_log
 
 
 def main():
@@ -136,6 +144,16 @@ def main():
         ax.plot(trace)
         ax.set_ylabel(name)
     fig.savefig("gaps_cf_params.pdf")
+
+    action_logs = [np.stack(r[4]) for r in results]
+    T, ac_dim = action_logs[0].shape
+    fig, axs = plt.subplots(ac_dim, 1, figsize=(2 * ac_dim, 9), constrained_layout=True)
+    for log, name in zip(action_logs, names):
+        for trace, ax in zip(log.T, axs):
+            ax.plot(trace, label=name)
+    for ax in axs:
+        ax.legend()
+    fig.savefig("gaps_cf_actions.pdf")
 
 
 if __name__ == "__main__":
