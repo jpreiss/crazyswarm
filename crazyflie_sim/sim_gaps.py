@@ -98,11 +98,10 @@ def main():
         for _ in range(2)
     ]
     for cf in cfs:
-        cf.mellinger_control.kd_xy *= 8
-        cf.mellinger_control.gaps.kd_xy = cf.mellinger_control.kd_xy
-        cf.mellinger_control.kR_xy *= 2
+        # without this, the simulation is unstable
+        cf.mellinger_control.kd_omega_rp = 0
         cf.mellinger_control.mass = Quadrotor(State()).mass
-        cf.mellinger_control.gaps_Qv *= 0.1
+        # because it's annoying to extract the "u"
         cf.mellinger_control.gaps_R = 0
 
     cfs[1].mellinger_control.gaps_enable = True
