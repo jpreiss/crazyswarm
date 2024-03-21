@@ -41,6 +41,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     cost_log = []
     param_log = []
     action_log = []
+    y_log = []
 
     # setpoint
     pos = np.zeros(3)
@@ -69,6 +70,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
 
         theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
         param_log.append(theta)
+        y_log.append(cf.mellinger_control.gaps.y)
 
         action = cf.executeController()
         action_arr = list(action.rpm) + [
@@ -87,7 +89,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
         f_disturb = w[t]
         sim.step(action, 1.0 / HZ, f_disturb)
 
-    return state_log, target_log, cost_log, param_log, action_log
+    return state_log, target_log, cost_log, param_log, action_log, y_log
 
 
 def main():
@@ -168,6 +170,12 @@ def main():
         ax.legend()
     fig_action.savefig("gaps_cf_actions.pdf")
 
+    y_log = np.stack(results[1][5])
+    assert y_log[0].shape == (9, 6)
+    fig_y, ax_y = subplots(1)
+    maxes = [np.amax(y.flat) for y in y_log]
+    ax_y.plot(t, maxes)
+    fig_y.savefig("gaps_cf_ymax.pdf")
 
 if __name__ == "__main__":
     main()
