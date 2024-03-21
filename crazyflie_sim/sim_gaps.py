@@ -28,7 +28,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     period = 6.0
     omega = 2 * np.pi / period
 
-    repeats = 4
+    repeats = 8
     T = int(repeats * period * HZ) + 1
 
     rng = np.random.default_rng(0)
@@ -50,7 +50,16 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     yaw = 0
     angvel = np.zeros(3)
 
+    # introduce a constant "wind" pushing us out of the desired fig8-plane
+    wind_osc = np.cos(2 * (2 * np.pi / T) * np.arange(T) - 0.4 * np.pi)
+    wind_y = np.clip(5 * wind_osc, -1, 1) - 1
+    w[:, 1] += 0.05 * wind_y
+    #plt.plot(w[:, 1])
+    #plt.show()
+
+
     for t in range(T):
+
         tsec = ticks / (2 * HZ)
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
@@ -103,6 +112,7 @@ def main():
         cf.mellinger_control.mass = Quadrotor(State()).mass
         # because it's annoying to extract the "u"
         cf.mellinger_control.gaps_R = 0
+        cf.mellinger_control.i_range_xy *= 0.5
 
     cfs[1].mellinger_control.gaps_enable = True
     cfs[1].mellinger_control.gaps_eta = 1e-2
@@ -118,6 +128,13 @@ def main():
     names = ["default", "GAPS", "target"]
 
     t = np.arange(len(state_logs[0])) / HZ
+
+    target = np.stack([step.pos for step in results[1][1]])
+    fig, ax = plt.subplots()
+    ax.plot(target[:, 0], target[:, 2], color="black")
+    ax.axis("equal")
+    fig.savefig("target.pdf")
+
 
     W = 8
     H = 2
