@@ -28,7 +28,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL):
     period = 6.0
     omega = 2 * np.pi / period
 
-    repeats = 6
+    repeats = 4
     T = int(repeats * period * HZ) + 1
 
     rng = np.random.default_rng(0)
@@ -117,45 +117,56 @@ def main():
 
     t = np.arange(len(state_logs[0])) / HZ
 
-    fig, axs = plt.subplots(7, 1, figsize=(15, 12), constrained_layout=True)
+    W = 8
+    H = 2
+    def subplots(n):
+        return plt.subplots(n, 1, figsize=(W, H*n), constrained_layout=True)
+
+    fig_pos, axs_pos = subplots(2)
+    fig_vel, axs_vel = subplots(2)
     for log, name in zip(state_logs, names):
-        for subplot, coord in zip(axs, [0, 2]):
-            coords = [s.pos[coord] for s in log]
-            subplot.plot(t, coords, label=name)
-            subplot.set(ylabel=["x", "y", "z"][coord])
-        for subplot, coord in zip(axs[2:4], [0, 2]):
-            coords = [s.vel[coord] for s in log]
-            subplot.plot(t, coords, label=name)
-            subplot.set(ylabel="v" + ["x", "y", "z"][coord])
-    for log, name in zip(cost_logs, names):
-        axs[-3].plot(t, log, label=name)
-    for log, name in zip(cost_logs, names):
-        axs[-2].plot(t, np.cumsum(log), label=name)
-    axs[-1].plot(t, np.cumsum(cost_logs[1] - cost_logs[0]))
-    axs[-3].set(ylabel="cost")
-    axs[-2].set(ylabel="cumulative cost")
-    axs[-1].set(ylabel="cum. cost difference")
-    for ax in axs:
+        for ax_p, ax_v, coord in zip(axs_pos, axs_vel, [0, 2]):
+            ax_p.plot(t, [s.pos[coord] for s in log], label=name)
+            ax_v.plot(t, [s.vel[coord] for s in log], label=name)
+            for ax in [ax_p, ax_v]:
+                ax.set(ylabel=["x", "y", "z"][coord])
+    for ax in axs_pos:
         ax.legend()
-    fig.savefig("gaps_cf.pdf")
+    for ax in axs_vel:
+        ax.legend()
+    fig_pos.savefig("gaps_cf_pos.pdf")
+    fig_vel.savefig("gaps_cf_vel.pdf")
+
+    fig_cost, axs_cost = subplots(3)
+    ax_cost, ax_cum, ax_regret = axs_cost
+    for log, name in zip(cost_logs, names):
+        ax_cost.plot(t, log, label=name)
+        ax_cum.plot(t, np.cumsum(log), label=name)
+    ax_regret.plot(t, np.cumsum(cost_logs[1] - cost_logs[0]))
+    ax_cost.set(ylabel="cost")
+    ax_cum.set(ylabel="cumulative cost")
+    ax_regret.set(ylabel="cum. cost difference")
+    for ax in axs_cost:
+        ax.legend()
+    fig_cost.savefig("gaps_cf_cost.pdf")
 
     param_logs = np.stack(results[1][3])
     T, theta_dim = param_logs.shape
-    fig, axs = plt.subplots(theta_dim, 1, figsize=(2 * theta_dim, 9), constrained_layout=True)
-    for trace, ax, name in zip(param_logs.T, axs, PARAM_ATTRS):
+    fig_param, axs_param = subplots(theta_dim)
+    for trace, ax, name in zip(param_logs.T, axs_param, PARAM_ATTRS):
         ax.plot(t, trace)
         ax.set_ylabel(name)
-    fig.savefig("gaps_cf_params.pdf")
+    fig_param.savefig("gaps_cf_params.pdf")
 
     action_logs = [np.stack(r[4]) for r in results]
     T, ac_dim = action_logs[0].shape
-    fig, axs = plt.subplots(ac_dim, 1, figsize=(2 * ac_dim, 9), constrained_layout=True)
+    fig_action, axs_action = subplots(ac_dim)
     for log, name in zip(action_logs, names):
-        for trace, ax in zip(log.T, axs):
+        for trace, ax in zip(log.T, axs_action):
             ax.plot(t, trace, label=name)
-    for ax in axs:
+    for ax in axs_action:
         ax.legend()
-    fig.savefig("gaps_cf_actions.pdf")
+    fig_action.savefig("gaps_cf_actions.pdf")
 
 
 if __name__ == "__main__":
