@@ -6,7 +6,7 @@ from rclpy.time import Time
 from rosgraph_msgs.msg import Clock
 
 from ..sim_data_types import Action, State
-import fastrowan as rowan
+import rowan
 from cffirmware import mkvec, vcross
 
 

@@ -11,7 +11,7 @@ import cffirmware as firm
 import numpy as np
 
 from . import sim_data_types
-import fastrowan as rowan
+import rowan
 
 
 class TrajectoryPolynomialPiece:
@@ -137,9 +137,6 @@ class CrazyflieSIL:
 
     def goTo(self, goal, yaw, duration, relative=False, groupMask=0):
         if self._isGroup(groupMask):
-            if self.mode != CrazyflieSIL.MODE_HIGH_POLY:
-                # We need to update to the latest firmware that has go_to_from.
-                raise ValueError('goTo from low-level modes not yet supported.')
             self.mode = CrazyflieSIL.MODE_HIGH_POLY
             firm.plan_go_to(
                 self.planner,
