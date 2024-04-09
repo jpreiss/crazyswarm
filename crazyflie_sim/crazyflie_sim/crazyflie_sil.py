@@ -37,12 +37,21 @@ class CrazyflieSIL:
     MODE_LOW_POSITION = 3
     MODE_LOW_VELOCITY = 4
 
-    def __init__(self, name, initialPosition, controller_name, time_func):
+    def __init__(self, name, initialPosition, controller_name, time_func=None):
         # Core.
         self.name = name
         self.groupMask = 0
         self.initialPosition = np.array(initialPosition)
-        self.time_func = time_func
+
+        # In tick mode, we can get exact monotonic tick sequences without
+        # worrying about floating-point issues.
+        if time_func is None:
+            self.tickmode = True
+            self.ticks = 0
+            self.time_func = lambda: self.ticks / 1000.0
+        else:
+            self.tickmode = False
+            self.time_func = time_func
 
         # Commander.
         self.mode = CrazyflieSIL.MODE_IDLE
@@ -300,8 +309,12 @@ class CrazyflieSIL:
             return sim_data_types.Action([0, 0, 0, 0])
 
         time_in_seconds = self.time_func()
-        # ticks is essentially the time in milliseconds as an integer
-        tick = int(time_in_seconds * 1000)
+        if self.tickmode:
+            tick = self.ticks
+            self.ticks += 1
+        else:
+            # ticks is essentially the time in milliseconds as an integer
+            tick = int(time_in_seconds * 1000)
         if self.controller_name != 'mellinger':
             self.controller(self.control, self.setpoint, self.sensors, self.state, tick)
         else:

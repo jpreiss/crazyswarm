@@ -119,7 +119,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
 
 def main(adapt: bool):
     cfs = [
-        CrazyflieSIL("", np.zeros(3), "mellinger", lambda: 0)
+        CrazyflieSIL("", np.zeros(3), "mellinger")
         for _ in range(2)
     ]
     for cf in cfs:
