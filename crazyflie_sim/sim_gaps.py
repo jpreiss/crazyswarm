@@ -43,6 +43,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     radius = 1.0
     period = 6.0
     omega = 2 * np.pi / period
+    init_pos = cf.initialPosition
 
     repeats = 4 + 4 * adapt
     T = int(repeats * period * HZ) + 1
@@ -50,6 +51,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     rng = np.random.default_rng(0)
     w = 1e-2 * rng.normal(size=(T, 3))
 
+    sim.state.pos = init_pos
     sim.state.vel[2] = radius * omega
 
     state_log = []
@@ -60,7 +62,8 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     y_log = []
 
     # setpoint
-    pos = np.zeros(3)
+    init_pos_vec = cffirmware.mkvec(*init_pos)
+    pos = init_pos
     vel = np.zeros(3)
     acc = np.zeros(3)
     yaw = 0
@@ -80,6 +83,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
         tsec = ticks / (2 * HZ)
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
+        pos += init_pos_vec
         vel[0] = -radius * omega * np.sin(omega * tsec)
         vel[2] = radius * 1 * omega * np.cos(2 * omega * tsec)
         acc[0] = -radius * (omega ** 2) * np.cos(omega * tsec)
@@ -119,7 +123,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
 
 def main(adapt: bool):
     cfs = [
-        CrazyflieSIL("", np.zeros(3), "mellinger")
+        CrazyflieSIL("", np.array([0.0, 0.0, 1.0]), "mellinger")
         for _ in range(2)
     ]
     for cf in cfs:
