@@ -19,21 +19,6 @@ PARAM_ATTRS = [
 HZ = 500
 
 
-def plot_colorchanging(ax, x, y, *args, **kwargs):
-    # Create a set of line segments so that we can color them individually
-    # This creates the points as an N x 1 x 2 array so that we can stack points
-    # together easily to get the segments. The segments array for line collection
-    # needs to be (numlines) x (points per line) x 2 (for x and y)
-    points = np.array([x, y]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    lc = LineCollection(segments, *args, **kwargs)
-    # Set the values used for colormapping
-    lc.set_array(np.linspace(0, 1, len(x)))
-    ax.add_collection(lc)
-    return lc
-    #fig.colorbar(line, ax=axs[0])
-
-
 class RampTime:
     def __init__(self, ramptime, faketime):
         # see ramptime.py for symbolic derivation
@@ -127,11 +112,12 @@ def rollout2(cf, Z, timeHelper):
         acc[0] = -radius * (omega2 ** 2) * np.cos(omega * tsec)
         acc[2] = -radius * 2 * (omega2 ** 2) * np.sin(2 * omega * tsec)
 
-        #state_log.append(deepcopy(sim.state))
-        #target_log.append(State(pos=pos, vel=vel))
-        #cost_log.append(
-            #0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
-        #)
+        if tsec > period and rampdown_begin is None:
+            state_log.append(cf.position())
+            target_log.append(pos.copy())
+            #cost_log.append(
+                #0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
+            #)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
 
         #theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
@@ -140,7 +126,7 @@ def rollout2(cf, Z, timeHelper):
 
         timeHelper.sleepForRate(30)
 
-    return state_log, target_log, cost_log, param_log, action_log, y_log
+    return state_log, target_log #, cost_log, param_log, action_log, y_log
 
 
 def main2(gaps: bool):
@@ -179,7 +165,7 @@ def main2(gaps: bool):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
     timeHelper.sleep(3.0)
 
-    logs = rollout2(cf, Z, timeHelper)
+    state_log, target_log = rollout2(cf, Z, timeHelper)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
@@ -187,6 +173,9 @@ def main2(gaps: bool):
 
     cf.land(targetHeight=0.03, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
+
+    name = "gaps.npz" if gaps else "default.npz"
+    np.savez(name, state=state_log, target=target_log)
 
 
 def main_old(adapt: bool):
