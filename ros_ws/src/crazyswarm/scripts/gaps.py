@@ -56,13 +56,13 @@ class RampTime:
 
 def rollout2(cf, Z, timeHelper):
     radius = 0.75
-    period = 3.5
+    period = 4
     omega = 2 * np.pi / period
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
     print("init_pos is", init_pos)
 
-    repeats = 1
+    repeats = 10
 
     state_log = []
     target_log = []
@@ -93,7 +93,7 @@ def rollout2(cf, Z, timeHelper):
             tderiv = ramp.deriv(ttrue)
         else:
             argt = ramp.T - (tramp - rampdown_begin)
-            assert argt >= 0
+            assert argt >= -1/50
             assert argt <= ramp.T
             tsec = rampdown_begin + ramp.X - ramp.val(argt)
             tderiv = ramp.deriv(argt)
@@ -103,14 +103,17 @@ def rollout2(cf, Z, timeHelper):
 
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
+        pos[1] = -pos[2]
         pos += init_pos
         #print(f"{pos = }")
         #print(f"{init_pos = }")
         omega2 = tderiv * omega
         vel[0] = -radius * omega2 * np.sin(omega * tsec)
         vel[2] = radius * 1 * omega2 * np.cos(2 * omega * tsec)
+        vel[1] = -vel[2]
         acc[0] = -radius * (omega2 ** 2) * np.cos(omega * tsec)
         acc[2] = -radius * 2 * (omega2 ** 2) * np.sin(2 * omega * tsec)
+        acc[1] = -acc[2]
 
         if tsec > period and rampdown_begin is None:
             state_log.append(cf.position())
@@ -124,7 +127,7 @@ def rollout2(cf, Z, timeHelper):
         #param_log.append(theta)
         #y_log.append(cf.mellinger_control.gaps.y)
 
-        timeHelper.sleepForRate(30)
+        timeHelper.sleepForRate(50)
 
     return state_log, target_log #, cost_log, param_log, action_log, y_log
 
@@ -134,30 +137,22 @@ def main2(gaps: bool):
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
 
-    rate = 30.0
     Z = 0.7
 
     # params
     GAPS_Qv = 0.0
     GAPS_R = 0.0
     GAPS_ETA = 1e-2
+    GAPS_DAMPING = 0.9995
 
-    if False:
-        if isinstance(cf, CrazyflieSIL):
-            # without this, the simulation is unstable
-            cf.mellinger_control.kd_omega_rp = 0
-            cf.mellinger_control.mass = Quadrotor(State()).mass
-            # because it's annoying to extract the "u"
-            cf.mellinger_control.gaps_Qv = GAPS_Qv
-            cf.mellinger_control.gaps_R = GAPS_R
-            # cf.mellinger_control.i_range_xy *= 0.5
-            cf.mellinger_control.gaps_eta = GAPS_ETA
-            cf.mellinger_control.gaps_enable = gaps
-        else:
-            cf.setParam("gaps.Qv", GAPS_Qv)
-            cf.setParam("gaps.R", GAPS_R)
-            cf.setParam("gaps.eta", GAPS_ETA)
-            cf.setParam("gaps.enable", gaps)
+    if gaps:
+        cf.setParams({
+            "gaps/Qv": GAPS_Qv,
+            "gaps/R": GAPS_R,
+            "gaps/eta": GAPS_ETA,
+            "gaps/damping": GAPS_DAMPING,
+        })
+        cf.setParam("gaps/enable", 1)
 
 
     cf.takeoff(targetHeight=Z, duration=Z+1.0)
