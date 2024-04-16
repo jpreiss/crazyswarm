@@ -171,7 +171,7 @@ def main(gaps: bool):
     # params
     GAPS_Qv = 0.0
     GAPS_R = 0.0
-    GAPS_ETA = 1e-2
+    GAPS_ETA = 1e-3
     GAPS_DAMPING = 0.9995
 
     if gaps:
