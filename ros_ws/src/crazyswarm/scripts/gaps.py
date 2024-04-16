@@ -17,7 +17,7 @@ def norm2(x):
     return np.sum(x ** 2)
 
 
-PARAM_ATTRS = [
+PARAMS = [
     p + s for p, s in it.product(["kp_", "kd_", "ki_"], ["xy", "z"])
 ]
 HZ = 500
@@ -161,7 +161,7 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     return state_log, target_log #, cost_log, param_log, action_log, y_log
 
 
-def main(gaps: bool):
+def main(gaps: bool, bad_init: bool = False):
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
@@ -172,7 +172,13 @@ def main(gaps: bool):
     GAPS_Qv = 0.0
     GAPS_R = 0.0
     GAPS_ETA = 1e-3
-    GAPS_DAMPING = 0.9995
+    GAPS_DAMPING = 0.9999
+
+    if bad_init:
+        # detune
+        full_params = ["ctrlMel/" + p for p in PARAMS]
+        values = [cf.getParam(p) / 2.0 for p in full_params]
+        cf.setParams(dict(zip(full_params, values)))
 
     if gaps:
         cf.setParams({
