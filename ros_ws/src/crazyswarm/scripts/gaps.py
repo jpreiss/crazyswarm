@@ -54,7 +54,7 @@ class RampTime:
         return 1.0
 
 
-def rollout2(cf, Z, timeHelper, diagonal: bool = True):
+def rollout(cf, Z, timeHelper, diagonal: bool = True):
     radius = 0.75
     period = 4
     omega = 2 * np.pi / period
@@ -134,7 +134,7 @@ def rollout2(cf, Z, timeHelper, diagonal: bool = True):
     return state_log, target_log #, cost_log, param_log, action_log, y_log
 
 
-def main2(gaps: bool):
+def main(gaps: bool):
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
@@ -162,7 +162,7 @@ def main2(gaps: bool):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
     timeHelper.sleep(3.0)
 
-    state_log, target_log = rollout2(cf, Z, timeHelper)
+    state_log, target_log = rollout(cf, Z, timeHelper)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
@@ -173,123 +173,6 @@ def main2(gaps: bool):
 
     name = "gaps.npz" if gaps else "default.npz"
     np.savez(name, state=state_log, target=target_log)
-
-
-def main_old(adapt: bool):
-    cfs = [
-        CrazyflieSIL("", np.array([0.0, 0.0, 1.0]), "mellinger")
-        for _ in range(2)
-    ]
-    for cf in cfs:
-        # without this, the simulation is unstable
-        cf.mellinger_control.kd_omega_rp = 0
-        cf.mellinger_control.mass = Quadrotor(State()).mass
-        # because it's annoying to extract the "u"
-        cf.mellinger_control.gaps_Qv = 0
-        cf.mellinger_control.gaps_R = 0
-        cf.mellinger_control.i_range_xy *= 0.5
-
-    cfs[1].mellinger_control.gaps_enable = True
-    cfs[1].mellinger_control.gaps_eta = 1e-2
-
-    results = [
-        rollout(Quadrotor(State()), cf, adapt=adapt)
-        for cf in cfs
-    ]
-
-    state_logs = [results[0][0], results[1][0], results[1][1]]
-    cost_logs = [results[0][2], results[1][2]]
-    cost_logs = [np.array(a) for a in cost_logs]
-    names = ["default", "GAPS", "target"]
-
-    t = np.arange(len(state_logs[0])) / HZ
-
-    target = np.stack([step.pos for step in results[1][1]])
-    fig, ax = plt.subplots()
-    ax.plot(target[:, 0], target[:, 2], color="black")
-    ax.axis("equal")
-    ax.set(ylabel="gravity", xlabel="horizontal")
-    fig.savefig("target.pdf")
-
-
-    W = 8
-    H = 1.5
-    def subplots(n):
-        return plt.subplots(n, 1, figsize=(W, H*n), constrained_layout=True)
-
-    prefix = "gaps_cf"
-    if adapt:
-        prefix += "_adapt"
-
-    fig_fig8, axs_fig8 = plt.subplots(1, 2, figsize=(8.5, 2.5), constrained_layout=True)
-    for ax, log, name in zip(axs_fig8, state_logs[:2], names[:2]):
-        pos = np.stack([s.pos for s in log])
-        ax.plot(target[:, 0], target[:, 2], label="target", color="gray", linewidth=1)
-        #ax.plot(pos[:, 0], pos[:, 2], label=name, color="black", linewidth=2)
-        cmap = "viridis"
-        line = plot_colorchanging(ax, pos[:, 0], pos[:, 2], label=name, cmap=cmap, linewidth=2)
-        ax.set(title=name, xlabel="horizontal (m)", ylabel="gravity (m)")
-        ax.axis("equal")
-    cbar = fig_fig8.colorbar(line)
-    cbar.ax.set_ylabel("time")
-    fig_fig8.savefig(f"{prefix}_fig8.pdf")
-
-    fig_pos, axs_pos = subplots(2)
-    fig_vel, axs_vel = subplots(2)
-    for log, name in zip(state_logs, names):
-        for ax_p, ax_v, coord in zip(axs_pos, axs_vel, [0, 2]):
-            ax_p.plot(t, [s.pos[coord] for s in log], label=name)
-            ax_v.plot(t, [s.vel[coord] for s in log], label=name)
-            for ax in [ax_p, ax_v]:
-                ax.set(ylabel=["x", "y", "z"][coord])
-    for ax in axs_pos:
-        ax.legend()
-    for ax in axs_vel:
-        ax.legend()
-    fig_pos.savefig(f"{prefix}_pos.pdf")
-    fig_vel.savefig(f"{prefix}_vel.pdf")
-
-    fig_cost, axs_cost = subplots(3)
-    ax_cost, ax_cum, ax_regret = axs_cost
-    for log, name in zip(cost_logs, names):
-        ax_cost.plot(t, log, label=name)
-        ax_cum.plot(t, np.cumsum(log), label=name)
-    ax_regret.plot(t, np.cumsum(cost_logs[1] - cost_logs[0]))
-    ax_cost.set(ylabel="cost")
-    ax_cum.set(ylabel="cumulative cost")
-    ax_regret.set(ylabel="cum. cost difference")
-    for ax in axs_cost:
-        ax.legend()
-    fig_cost.savefig(f"{prefix}_cost.pdf")
-
-    param_logs = np.stack(results[1][3])
-    T, theta_dim = param_logs.shape
-    fig_param, axs_param = subplots(theta_dim)
-    for trace, ax, name in zip(param_logs.T, axs_param, PARAM_ATTRS):
-        ax.plot(t, trace)
-        ax.set_ylabel(name)
-    fig_param.savefig(f"{prefix}_params.pdf")
-
-    action_logs = [np.stack(r[4]) for r in results]
-    T, ac_dim = action_logs[0].shape
-    fig_action, axs_action = subplots(ac_dim)
-    for log, name in zip(action_logs, names):
-        for trace, ax in zip(log.T, axs_action):
-            ax.plot(t, trace, label=name)
-    for ax in axs_action:
-        ax.legend()
-    fig_action.savefig(f"{prefix}_actions.pdf")
-
-    y_log = np.stack(results[1][5])
-    assert y_log[0].shape == (9, 6)
-    fig_y, ax_y = subplots(1)
-    maxes = [np.amax(y.flat) for y in y_log]
-    ax_y.plot(t, maxes)
-    fig_y.savefig(f"{prefix}_ymax.pdf")
-
-
-def main():
-    main2(gaps=False)
 
 
 if __name__ == "__main__":
