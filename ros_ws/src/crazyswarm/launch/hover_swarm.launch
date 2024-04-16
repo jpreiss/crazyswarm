@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="joy_dev" default="/dev/input/js0" />
+  <arg name="gaps" default="False"/>
 
   <rosparam command="load" file="$(find crazyswarm)/launch/crazyflieTypes.yaml" />
   <rosparam command="load" file="$(find crazyswarm)/launch/crazyflies.yaml" />
 
   <node pkg="crazyswarm" type="crazyswarm_server" name="crazyswarm_server" output="screen" >
+    <param name="gaps" value="$(arg gaps)"/>
     <rosparam>
       # Logging configuration (Use enable_logging to actually enable logging)
       genericLogTopics: ["gaps"]

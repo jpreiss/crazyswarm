@@ -165,7 +165,11 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     return state_log, target_log #, cost_log, param_log, action_log, y_log
 
 
-def main(gaps: bool, bad_init: bool = False):
+def main(bad_init: bool = False):
+    gaps = rospy.get_param("crazyswarm_server/gaps")
+    assert isinstance(gaps, bool)
+    print("gaps is", gaps)
+
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
@@ -192,7 +196,8 @@ def main(gaps: bool, bad_init: bool = False):
             "gaps/damping": GAPS_DAMPING,
         })
         cf.setParam("gaps/enable", 1)
-
+    else:
+        cf.setParam("gaps/enable", 0)
 
     cf.takeoff(targetHeight=Z, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
@@ -213,4 +218,4 @@ def main(gaps: bool, bad_init: bool = False):
 
 
 if __name__ == "__main__":
-    main(gaps=False)
+    main(bad_init=True)
