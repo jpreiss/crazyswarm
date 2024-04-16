@@ -186,14 +186,14 @@ def main(gaps: bool):
 
     cf.takeoff(targetHeight=Z, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
-    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
-    timeHelper.sleep(3.0)
+    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
+    timeHelper.sleep(2.0)
 
     state_log, target_log = rollout(cf, Z, timeHelper)
 
     cf.notifySetpointsStop()
-    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=2.0)
-    timeHelper.sleep(3.0)
+    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
+    timeHelper.sleep(2.0)
 
     cf.land(targetHeight=0.03, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
