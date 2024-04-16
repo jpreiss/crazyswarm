@@ -89,9 +89,9 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     rampdown_begin = None
 
     tf_target = tf.TransformBroadcaster()
-    msg_fan = std_msgs.msg.Bool()
-    msg_fan.data = False
+    msg_bool = std_msgs.msg.Bool()
     pub_fan = rospy.Publisher("fan", std_msgs.msg.Bool, queue_size=1)
+    pub_trial = rospy.Publisher("trial", std_msgs.msg.Bool, queue_size=1)
 
     while True:
         ttrue = timeHelper.time() - t0
@@ -111,14 +111,18 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
             if tsec > (repeats + 2) * period:
                 break
 
+        trial = period < tsec < (repeats + 1) * period
+        msg_bool.data = trial
+        pub_trial.publish(msg_bool)
+
         # turn the fan on or off
-        if period < tsec < (repeats + 1) * period:
+        if trial:
             repeat = int(tsec / period) - 1
             fan_on = repeat % (2 * fan_cycle) >= fan_cycle
         else:
             fan_on = False
-        msg_fan.data = fan_on
-        pub_fan.publish(msg_fan)
+        msg_bool.data = fan_on
+        pub_fan.publish(msg_bool)
 
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
