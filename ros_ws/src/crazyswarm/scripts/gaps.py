@@ -54,7 +54,7 @@ class RampTime:
         return 1.0
 
 
-def rollout2(cf, Z, timeHelper):
+def rollout2(cf, Z, timeHelper, diagonal: bool = True):
     radius = 0.75
     period = 4
     omega = 2 * np.pi / period
@@ -103,17 +103,19 @@ def rollout2(cf, Z, timeHelper):
 
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
-        pos[1] = -pos[2]
+        if diagonal:
+            pos[1] = -pos[2]
         pos += init_pos
         #print(f"{pos = }")
         #print(f"{init_pos = }")
         omega2 = tderiv * omega
         vel[0] = -radius * omega2 * np.sin(omega * tsec)
         vel[2] = radius * 1 * omega2 * np.cos(2 * omega * tsec)
-        vel[1] = -vel[2]
         acc[0] = -radius * (omega2 ** 2) * np.cos(omega * tsec)
         acc[2] = -radius * 2 * (omega2 ** 2) * np.sin(2 * omega * tsec)
-        acc[1] = -acc[2]
+        if diagonal:
+            vel[1] = -vel[2]
+            acc[1] = -acc[2]
 
         if tsec > period and rampdown_begin is None:
             state_log.append(cf.position())
