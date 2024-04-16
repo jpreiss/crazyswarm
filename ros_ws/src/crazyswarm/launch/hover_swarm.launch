@@ -8,9 +8,18 @@
   <node pkg="crazyswarm" type="crazyswarm_server" name="crazyswarm_server" output="screen" >
     <rosparam>
       # Logging configuration (Use enable_logging to actually enable logging)
-      genericLogTopics: ["log1"]
+      genericLogTopics: ["gaps"]
       genericLogTopicFrequencies: [10]
-      genericLogTopic_log1_Variables: ["stateEstimate.x", "ctrltarget.x"]
+      genericLogTopic_gaps_Variables: [
+        "gaps.yabsmax",
+        "gaps.kp_xy",
+        "gaps.kp_z",
+        #"gaps.kd_xy",
+        #"gaps.kd_z",
+        "gaps.ki_xy",
+        "gaps.ki_z",
+      ]
+
       # firmware parameters for all drones (use crazyflieTypes.yaml to set per type, or
       # allCrazyflies.yaml to set per drone)
       firmwareParams:
@@ -38,11 +47,11 @@
       # motion_capture_interface_ip: "" # optional for optitrack with multiple interfaces
       save_point_clouds: "/dev/null" # set to a valid path to log mocap point cloud binary file.
       print_latency: False
-      write_csvs: False
+      write_csvs: True
       force_no_cache: False
       enable_parameters: True
-      enable_logging: False
-      enable_logging_pose: True
+      enable_logging: True
+      enable_logging_pose: False
     </rosparam>
   </node>
 
