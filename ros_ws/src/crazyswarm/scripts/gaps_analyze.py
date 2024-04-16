@@ -34,7 +34,7 @@ def main(adapt=False):
 
     prefix = "basic"
 
-    for npz in [z_gaps]:
+    for npz in [z_default, z_gaps]:
         pos = npz["state"]
         target = npz["target"]
         cost = np.sum((pos - target) ** 2, axis=1)
@@ -52,7 +52,6 @@ def main(adapt=False):
     cbar = fig_fig8.colorbar(line)
     cbar.ax.set_ylabel("time")
     fig_fig8.savefig(f"{prefix}_fig8.pdf")
-    return
 
     fig_cost, axs_cost = subplots(3)
     ax_cost, ax_cum, ax_regret = axs_cost
