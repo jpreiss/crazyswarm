@@ -6,6 +6,10 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import numpy as np
 
+import rospy
+import std_msgs
+import tf
+
 from pycrazyswarm import *
 
 
@@ -62,7 +66,8 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     assert Z > radius / 2 + 0.2
     print("init_pos is", init_pos)
 
-    repeats = 10
+    repeats = 4
+    fan_cycle = 2
 
     state_log = []
     target_log = []
@@ -83,6 +88,11 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     ramp = RampTime(1.5 * period, period)
     rampdown_begin = None
 
+    tf_target = tf.TransformBroadcaster()
+    msg_fan = std_msgs.msg.Bool()
+    msg_fan.data = False
+    pub_fan = rospy.Publisher("fan", std_msgs.msg.Bool, queue_size=1)
+
     while True:
         ttrue = timeHelper.time() - t0
         tramp = ramp.val(ttrue)
@@ -101,6 +111,15 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
             if tsec > (repeats + 2) * period:
                 break
 
+        # turn the fan on or off
+        if period < tsec < (repeats + 1) * period:
+            repeat = int(tsec / period) - 1
+            fan_on = repeat % (2 * fan_cycle) >= fan_cycle
+        else:
+            fan_on = False
+        msg_fan.data = fan_on
+        pub_fan.publish(msg_fan)
+
         pos[0] = radius * np.cos(omega * tsec) - radius
         pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
         if diagonal:
@@ -116,6 +135,14 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
         if diagonal:
             vel[1] = -vel[2]
             acc[1] = -acc[2]
+
+        tf_target.sendTransform(
+            pos,
+            [0, 0, 0, 1],  # ROS uses xyzw
+            time=rospy.Time.now(),
+            child="target",
+            parent="world",
+        )
 
         if tsec > period and rampdown_begin is None:
             state_log.append(cf.position())
@@ -176,4 +203,4 @@ def main(gaps: bool):
 
 
 if __name__ == "__main__":
-    main()
+    main(gaps=False)
