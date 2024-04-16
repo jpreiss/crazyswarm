@@ -11,11 +11,11 @@
       genericLogTopics: ["gaps"]
       genericLogTopicFrequencies: [10]
       genericLogTopic_gaps_Variables: [
-        "gaps.yabsmax",
+        #"gaps.yabsmax",
         "gaps.kp_xy",
         "gaps.kp_z",
-        #"gaps.kd_xy",
-        #"gaps.kd_z",
+        "gaps.kd_xy",
+        "gaps.kd_z",
         "gaps.ki_xy",
         "gaps.ki_z",
       ]
@@ -63,6 +63,7 @@
     <param name="csv_file" value="$(find crazyswarm)/launch/figure8_smooth.csv" />
     <param name="timescale" value="0.8" />
   </node>-->
+  <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps"/>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
 
