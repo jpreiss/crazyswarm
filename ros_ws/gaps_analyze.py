@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import numpy as np
+import pandas as pd
 
 
 def plot_colorchanging(ax, x, y, *args, **kwargs):
@@ -24,9 +25,11 @@ def main(adapt=False):
     def subplots(n):
         return plt.subplots(n, 1, figsize=(W, H*n), constrained_layout=True)
 
-    z_default = np.load("default.npz")
-    z_gaps = np.load("gaps.npz")
-    names = ["default", "GAPS"]
+    df = pd.read_json("gaps_log.json")
+    print(df)
+    df = df.interpolate()
+    print(df)
+    __import__('pdb').set_trace()
 
     state_logs = []
     targets = []
