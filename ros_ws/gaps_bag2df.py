@@ -3,10 +3,10 @@ import rosbag
 import yaml
 
 
-def main():
+def convert(parampath, bagpath, outpath):
     # Parse the launch file so we can give proper names to the anonymous values
     # in the CF generic log block.
-    with open("/home/james/.ros/gaps_params.yaml") as f:
+    with open(parampath) as f:
         params = yaml.load(f, Loader=yaml.SafeLoader)
     topics = params["/crazyswarm_server/genericLogTopics"]
     assert len(topics) == 1
@@ -15,9 +15,10 @@ def main():
     vars = params[vars_key]
     assert all(v.startswith("gaps.") for v in vars)
     vars = [v[5:] for v in vars]
+    gaps = params["/crazyswarm_server/gaps"]
 
     # Use the "trial" topic to isolate the part where we measure performance.
-    bag = rosbag.Bag("/home/james/.ros/gaps.bag")
+    bag = rosbag.Bag(bagpath)
     msgs = list(bag.read_messages())
     active = [
         i for i, (topic, msg, t) in enumerate(msgs)
@@ -51,8 +52,14 @@ def main():
                     records.append(dict(t=tsec, pos_x=trans.x, pos_y=trans.y, pos_z=trans.z))
     df = pd.DataFrame(records)
     df = df.groupby("t").first().reset_index()
-    df.to_json("gaps_log.json")
+    df["gaps"] = gaps
+    df.to_json(outpath)
 
 
 if __name__ == "__main__":
-    main()
+    for mode in ["false", "true"]:
+        convert(
+            f"/home/james/.ros/gaps_{mode}_params.yaml",
+            f"/home/james/.ros/gaps_{mode}.bag",
+            f"/home/james/.ros/gaps_{mode}.json",
+        )

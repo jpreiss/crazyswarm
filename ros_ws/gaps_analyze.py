@@ -1,7 +1,10 @@
+import itertools as it
+
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
 
 def plot_colorchanging(ax, x, y, *args, **kwargs):
@@ -19,56 +22,69 @@ def plot_colorchanging(ax, x, y, *args, **kwargs):
     #fig.colorbar(line, ax=axs[0])
 
 
-def main(adapt=False):
-    W = 8
-    H = 1.5
-    def subplots(n):
-        return plt.subplots(n, 1, figsize=(W, H*n), constrained_layout=True)
-
-    df = pd.read_json("gaps_log.json")
-    print(df)
-    df = df.interpolate()
-    print(df)
-    __import__('pdb').set_trace()
-
-    state_logs = []
-    targets = []
-    cost_logs = []
-
-    prefix = "basic"
-
-    for npz in [z_default, z_gaps]:
-        pos = npz["state"]
-        target = npz["target"]
-        cost = np.sum((pos - target) ** 2, axis=1)
-        state_logs.append(pos)
-        targets.append(target)
-        cost_logs.append(cost)
-
-    fig_fig8, axs_fig8 = plt.subplots(1, 2, figsize=(8.5, 2.5), constrained_layout=True)
-    for ax, pos, target, name in zip(axs_fig8, state_logs, targets, names):
-        ax.plot(target[:, 0], target[:, 2], label="target", color="gray", linewidth=1)
+def plot_fig8(dfs, prefix, names):
+    fig_fig8, axs_fig8 = plt.subplots(2, 1, figsize=(4.0, 4.5), constrained_layout=True)
+    for ax, df, name in zip(axs_fig8, dfs, names):
+        df = df.interpolate()
+        ax.plot(df["target_x"], df["target_z"], label="target", color="gray", linewidth=1)
         cmap = "viridis"
-        line = plot_colorchanging(ax, pos[:, 0], pos[:, 2], label=name, cmap=cmap, linewidth=2)
+        line = plot_colorchanging(ax, df["pos_x"], df["pos_z"], label=name, cmap=cmap, linewidth=2)
         ax.set(title=name, xlabel="horizontal (m)", ylabel="gravity (m)")
         ax.axis("equal")
     cbar = fig_fig8.colorbar(line)
     cbar.ax.set_ylabel("time")
     fig_fig8.savefig(f"{prefix}_fig8.pdf")
 
-    fig_cost, axs_cost = subplots(3)
+
+def plot_costs(dfs, prefix, names):
+    fig_cost, axs_cost = plt.subplots(3, 1, figsize=(4, 6), constrained_layout=True)
     ax_cost, ax_cum, ax_regret = axs_cost
-    for log, name in zip(cost_logs, names):
-        t = np.arange(len(log)) / 50 # TODO: log time
-        ax_cost.plot(t, log, label=name)
-        ax_cum.plot(t, np.cumsum(log), label=name)
-    ax_regret.plot(t, np.cumsum(cost_logs[1] - cost_logs[0]))
-    ax_cost.set(ylabel="cost")
-    ax_cum.set(ylabel="cumulative cost")
-    ax_regret.set(ylabel="cum. cost difference")
-    for ax in axs_cost:
-        ax.legend()
+    dfcat = pd.concat([df.interpolate() for df in dfs]).reset_index()
+    sns.lineplot(dfcat, ax=ax_cost, x="t", y="cost", hue="gaps")
+    sns.lineplot(dfcat, ax=ax_cum, x="t", y="cost_cum", hue="gaps")
+    dfboth = pd.merge(*dfs, on="t", how="outer", sort=True, suffixes=names).interpolate()
+    r = dfboth["cost_cumGAPS"] - dfboth["cost_cumbaseline"]
+    dfboth["regret"] = r
+    sns.lineplot(dfboth, ax=ax_regret, x="t", y="regret")
     fig_cost.savefig(f"{prefix}_cost.pdf")
+
+
+def plot_params(dfs, prefix, names):
+    thetas = [f"{p}_{s}" for p, s in it.product(["kp", "ki", "kd"], ["xy", "z"])]
+    #dfs = [df.sample(frac=0.1) for df in dfs]
+    df = pd.concat(dfs).melt(id_vars=["gaps", "t"], value_vars=thetas)
+    fig = sns.relplot(
+        df,
+        kind="line",
+        hue="gaps",
+        row="variable",
+        x="t",
+        y="value",
+        height=2.0,
+        aspect=3.0,
+        facet_kws=dict(
+            sharey=False,
+        )
+    )
+    fig.savefig(f"{prefix}_params.pdf")
+
+
+def main():
+    dfs = []
+    for mode in ["true", "false"]:
+        df = pd.read_json(f"/home/james/.ros/gaps_{mode}.json")
+        df["t"] = df["t"] - df["t"][0]
+        dfi = df.interpolate()
+        cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
+        df["cost"] = cost
+        df["cost_cum"] = cost.cumsum()
+        dfs.append(df)
+    names = ["GAPS", "baseline"]
+    prefix = "basic"
+
+    plot_fig8(dfs, prefix, names)
+    plot_costs(dfs, prefix, names)
+    plot_params(dfs, prefix, names)
 
 
 if __name__ == "__main__":

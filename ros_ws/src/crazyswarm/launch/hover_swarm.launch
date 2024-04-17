@@ -65,7 +65,7 @@
     <param name="csv_file" value="$(find crazyswarm)/launch/figure8_smooth.csv" />
     <param name="timescale" value="0.8" />
   </node>-->
-  <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps"/>
+  <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps_$(arg gaps)"/>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
 
