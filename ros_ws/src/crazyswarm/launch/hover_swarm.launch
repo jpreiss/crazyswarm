@@ -61,10 +61,11 @@
     <param name="dev" value="$(arg joy_dev)" />
   </node>
 
-  <!--<node pkg="crazyswarm" type="crazyswarm_teleop" name="crazyswarm_teleop" output="screen">
+  <node pkg="crazyswarm" type="crazyswarm_teleop" name="crazyswarm_teleop" output="screen">
     <param name="csv_file" value="$(find crazyswarm)/launch/figure8_smooth.csv" />
     <param name="timescale" value="0.8" />
-  </node>-->
+  </node>
+
   <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps_$(arg gaps)"/>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
