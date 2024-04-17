@@ -58,7 +58,7 @@ class RampTime:
         return 1.0
 
 
-def rollout(cf, Z, timeHelper, diagonal: bool = True):
+def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     radius = 0.75
     period = 4
     omega = 2 * np.pi / period
@@ -66,8 +66,8 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     assert Z > radius / 2 + 0.2
     print("init_pos is", init_pos)
 
-    repeats = 4
-    fan_cycle = 2
+    repeats = 16
+    fan_cycle = 1
 
     state_log = []
     target_log = []
@@ -87,6 +87,7 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     t0 = timeHelper.time()
     ramp = RampTime(1.5 * period, period)
     rampdown_begin = None
+    param_set = False
 
     tf_target = tf.TransformBroadcaster()
     msg_bool = std_msgs.msg.Bool()
@@ -96,6 +97,11 @@ def rollout(cf, Z, timeHelper, diagonal: bool = True):
     while True:
         ttrue = timeHelper.time() - t0
         tramp = ramp.val(ttrue)
+
+        if tramp > period and not param_set:
+            cf.setParam("gaps/enable", 1 if gaps else 0)
+            param_set = True
+
         if tramp > (repeats + 1) * period and rampdown_begin is None:
             rampdown_begin = tramp
         if rampdown_begin is None:
@@ -180,7 +186,7 @@ def main(bad_init: bool = False):
     GAPS_Qv = 0.0
     GAPS_R = 0.0
     GAPS_ETA = 1e-3
-    GAPS_DAMPING = 0.9999
+    GAPS_DAMPING = 0.9995
 
     if bad_init:
         # detune
@@ -195,16 +201,17 @@ def main(bad_init: bool = False):
             "gaps/eta": GAPS_ETA,
             "gaps/damping": GAPS_DAMPING,
         })
-        cf.setParam("gaps/enable", 1)
-    else:
-        cf.setParam("gaps/enable", 0)
+
+    # Always disable in the beginning. rollout() will enable after we are up to
+    # speed in the figure 8 loop.
+    cf.setParam("gaps/enable", 0)
 
     cf.takeoff(targetHeight=Z, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    state_log, target_log = rollout(cf, Z, timeHelper)
+    state_log, target_log = rollout(cf, Z, timeHelper, gaps=gaps)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
