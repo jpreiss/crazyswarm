@@ -22,6 +22,19 @@ def plot_colorchanging(ax, x, y, *args, **kwargs):
     #fig.colorbar(line, ax=axs[0])
 
 
+def shade_fan(df, ax):
+    fan_state = df["fan"].bfill().ffill()
+    fan_state.iloc[-1] = False
+    fan_toggles = np.flatnonzero(np.diff(fan_state) != 0)
+    assert len(fan_toggles) & 0x1 == 0
+    # convert from index to time
+    fan_toggles = df["t"].iloc[fan_toggles].to_numpy()
+    label = "fan on"
+    for pair in fan_toggles.reshape((-1, 2)):
+        ax.axvspan(*pair, alpha=0.2, color="black", linewidth=0, label=label)
+        label = None
+
+
 def plot_fig8(dfs, prefix, names):
     fig_fig8, axs_fig8 = plt.subplots(2, 1, figsize=(4.0, 4.5), constrained_layout=True)
     for ax, df, name in zip(axs_fig8, dfs, names):
@@ -46,6 +59,9 @@ def plot_costs(dfs, prefix, names):
     r = dfboth["cost_cumGAPS"] - dfboth["cost_cumbaseline"]
     dfboth["regret"] = r
     sns.lineplot(dfboth, ax=ax_regret, x="t", y="regret")
+    for ax in axs_cost:
+        shade_fan(dfs[0], ax)
+        ax.legend()
     fig_cost.savefig(f"{prefix}_cost.pdf")
 
 
@@ -53,7 +69,7 @@ def plot_params(dfs, prefix, names):
     thetas = [f"{p}_{s}" for p, s in it.product(["kp", "ki", "kd"], ["xy", "z"])]
     #dfs = [df.sample(frac=0.1) for df in dfs]
     df = pd.concat(dfs).melt(id_vars=["gaps", "t"], value_vars=thetas)
-    fig = sns.relplot(
+    grid = sns.relplot(
         df,
         kind="line",
         hue="gaps",
@@ -66,7 +82,10 @@ def plot_params(dfs, prefix, names):
             sharey=False,
         )
     )
-    fig.savefig(f"{prefix}_params.pdf")
+    for ax in grid.axes.flat:
+        shade_fan(dfs[0], ax)
+        ax.legend()
+    grid.savefig(f"{prefix}_params.pdf")
 
 
 def main():
