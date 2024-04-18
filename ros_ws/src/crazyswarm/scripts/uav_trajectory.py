@@ -8,6 +8,18 @@ def normalize(v):
   return v / norm
 
 
+def compute_omega(acc, jerk, yaw, dyaw):
+    thrust = acc + np.array([0, 0, 9.81]) # add gravity
+    z_body = normalize(thrust)
+    x_world = np.array([np.cos(yaw), np.sin(yaw), 0])
+    y_body = normalize(np.cross(z_body, x_world))
+    x_body = np.cross(y_body, z_body)
+    jerk_orth_zbody = jerk - (np.dot(jerk, z_body) * z_body)
+    h_w = jerk_orth_zbody / np.linalg.norm(thrust)
+    omega = np.array([-np.dot(h_w, y_body), np.dot(h_w, x_body), z_body[2] * dyaw])
+    return omega
+
+
 class Polynomial:
   def __init__(self, p):
     self.p = p
@@ -70,18 +82,8 @@ class Polynomial4D:
     # 3rd derivative
     derivative3 = derivative2.derivative()
     jerk = np.array([derivative3.px.eval(t), derivative3.py.eval(t), derivative3.pz.eval(t)])
+    result.omega = compute_omega(result.acc, jerk, result.yaw, dyaw)
 
-    thrust = result.acc + np.array([0, 0, 9.81]) # add gravity
-
-    z_body = normalize(thrust)
-    x_world = np.array([np.cos(result.yaw), np.sin(result.yaw), 0])
-    y_body = normalize(np.cross(z_body, x_world))
-    x_body = np.cross(y_body, z_body)
-
-    jerk_orth_zbody = jerk - (np.dot(jerk, z_body) * z_body)
-    h_w = jerk_orth_zbody / np.linalg.norm(thrust)
-
-    result.omega = np.array([-np.dot(h_w, y_body), np.dot(h_w, x_body), z_body[2] * dyaw])
     return result
 
 

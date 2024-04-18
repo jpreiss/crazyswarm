@@ -11,6 +11,7 @@ import std_msgs
 import tf
 
 from pycrazyswarm import *
+from uav_trajectory import compute_omega
 
 
 def norm2(x):
@@ -73,6 +74,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     pos = init_pos.copy()
     vel = np.zeros(3)
     acc = np.zeros(3)
+    jerk = np.zeros(3)
     yaw = 0
     angvel = np.zeros(3)
 
@@ -135,9 +137,13 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
         vel[2] = radius * 1 * omega2 * np.cos(2 * omega * tsec)
         acc[0] = -radius * (omega2 ** 2) * np.cos(omega * tsec)
         acc[2] = -radius * 2 * (omega2 ** 2) * np.sin(2 * omega * tsec)
+        jerk[0] = radius * (omega2 ** 3) * np.sin(omega * tsec)
+        jerk[2] = -radius * 4 * (omega2 ** 3) * np.cos(2 * omega * tsec)
         if diagonal:
             vel[1] = -vel[2]
             acc[1] = -acc[2]
+            jerk[1] = -jerk[2]
+        angvel = compute_omega(acc, jerk, yaw=0, dyaw=0)
 
         tf_target.sendTransform(
             pos,
