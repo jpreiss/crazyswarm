@@ -69,13 +69,6 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     repeats = 16
     fan_cycle = 1
 
-    state_log = []
-    target_log = []
-    cost_log = []
-    param_log = []
-    action_log = []
-    y_log = []
-
     # setpoint
     pos = init_pos.copy()
     vel = np.zeros(3)
@@ -153,22 +146,8 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
             child="target",
             parent="world",
         )
-
-        if tsec > period and rampdown_begin is None:
-            state_log.append(cf.position())
-            target_log.append(pos.copy())
-            #cost_log.append(
-                #0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
-            #)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
-
-        #theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
-        #param_log.append(theta)
-        #y_log.append(cf.mellinger_control.gaps.y)
-
         timeHelper.sleepForRate(50)
-
-    return state_log, target_log #, cost_log, param_log, action_log, y_log
 
 
 def main(bad_init: bool = False):
@@ -211,7 +190,7 @@ def main(bad_init: bool = False):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    state_log, target_log = rollout(cf, Z, timeHelper, gaps=gaps)
+    rollout(cf, Z, timeHelper, gaps=gaps)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
@@ -219,9 +198,6 @@ def main(bad_init: bool = False):
 
     cf.land(targetHeight=0.03, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
-
-    name = "gaps.npz" if gaps else "default.npz"
-    np.savez(name, state=state_log, target=target_log)
 
 
 if __name__ == "__main__":
