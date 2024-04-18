@@ -18,7 +18,7 @@ def callback(msg):
 
 def main():
     global arduino
-    arduino = serial.Serial("/dev/ttyACM0",  baudrate=115200, timeout=1)
+    arduino = serial.Serial("/dev/ttyACM1",  baudrate=115200, timeout=1)
     # turn off initially
     arduino.write(bytes("0", "ascii"))
     rospy.init_node("fan_switcher")
