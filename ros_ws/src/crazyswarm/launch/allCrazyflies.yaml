@@ -2,4 +2,4 @@ crazyflies:
 - channel: 70
   id: 21
   initialPosition: [0.0, 0.0, 0.0]
-  type: default
+  type: defaultSingleMarker
