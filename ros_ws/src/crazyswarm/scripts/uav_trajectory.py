@@ -109,3 +109,34 @@ class Trajectory:
       if t <= current_t + p.duration:
         return p.eval(t - current_t)
       current_t = current_t + p.duration
+
+
+class TrigTrajectory:
+  """Computes a sinusoid and its derivatives.
+
+  Useful for constructing circles, figure-8s, etc.
+  """
+  def __init__(self, amplitude=1.0, phase=0.0, *, omega=None, period=None, frequency=None, deriv=3):
+    if sum([v is not None for v in [omega, period, frequency]]) != 1:
+      raise ValueError("Must supply exactly one of omega, period, and frequency.")
+    if frequency is not None:
+      period = 1.0 / frequency
+    if period is not None:
+      omega = 2 * np.pi / period
+    self.inner = 1j * omega
+    self.scales = amplitude * (self.inner ** np.arange(deriv + 1))
+    self.phase = 1j * phase
+
+  def __call__(self, t):
+    """Returns array of [function, f', f'', f''']."""
+    cpx = self.scales * np.exp((self.inner * t) + self.phase)
+    return cpx.real
+
+  @staticmethod
+  def Cosine(**kwargs):
+    return TrigTrajectory(phase=0, **kwargs)
+
+  @staticmethod
+  def Sine(**kwargs):
+    phase = -np.pi / 2.0
+    return TrigTrajectory(phase=phase, **kwargs)
