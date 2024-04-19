@@ -11,7 +11,7 @@ import std_msgs
 import tf
 
 from pycrazyswarm import *
-from uav_trajectory import compute_omega
+from uav_trajectory import compute_omega, TrigTrajectory
 
 
 def norm2(x):
@@ -61,20 +61,17 @@ class RampTime:
 
 def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     radius = 0.75
-    period = 4
-    omega = 2 * np.pi / period
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
-    print("init_pos is", init_pos)
+    period = 4
+    xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
+    ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
     repeats = 16
     fan_cycle = 1
 
     # setpoint
-    pos = init_pos.copy()
-    vel = np.zeros(3)
-    acc = np.zeros(3)
-    jerk = np.zeros(3)
+    derivs = np.zeros((4, 3))
     yaw = 0
     angvel = np.zeros(3)
 
@@ -93,12 +90,14 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
         ttrue = timeHelper.time() - t0
         tramp = ramp.val(ttrue)
 
+        # TODO: encapsulate the ramp-down logic in the class too.
         if tramp > period and not param_set:
             cf.setParam("gaps/enable", 1 if gaps else 0)
             param_set = True
 
         if tramp > (repeats + 1) * period and rampdown_begin is None:
             rampdown_begin = tramp
+            tderiv = 1.0
         if rampdown_begin is None:
             tsec = tramp
             tderiv = ramp.deriv(ttrue)
@@ -125,24 +124,13 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
         msg_bool.data = fan_on
         pub_fan.publish(msg_bool)
 
-        pos[0] = radius * np.cos(omega * tsec) - radius
-        pos[2] = radius * 0.5 * np.sin(2 * omega * tsec)
+        derivs[:, 0] = xtraj(tsec, timestretch=1.0/tderiv)
+        derivs[:, 2] = ztraj(tsec, timestretch=1.0/tderiv)
         if diagonal:
-            pos[1] = -pos[2]
+            derivs[:, 1] = -derivs[:, 2]
+        pos, vel, acc, jerk = derivs
+        pos[0] -= radius
         pos += init_pos
-        #print(f"{pos = }")
-        #print(f"{init_pos = }")
-        omega2 = tderiv * omega
-        vel[0] = -radius * omega2 * np.sin(omega * tsec)
-        vel[2] = radius * 1 * omega2 * np.cos(2 * omega * tsec)
-        acc[0] = -radius * (omega2 ** 2) * np.cos(omega * tsec)
-        acc[2] = -radius * 2 * (omega2 ** 2) * np.sin(2 * omega * tsec)
-        jerk[0] = radius * (omega2 ** 3) * np.sin(omega * tsec)
-        jerk[2] = -radius * 4 * (omega2 ** 3) * np.cos(2 * omega * tsec)
-        if diagonal:
-            vel[1] = -vel[2]
-            acc[1] = -acc[2]
-            jerk[1] = -jerk[2]
         angvel = compute_omega(acc, jerk, yaw=0, dyaw=0)
 
         tf_target.sendTransform(
