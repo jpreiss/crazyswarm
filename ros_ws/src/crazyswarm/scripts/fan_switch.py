@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import glob
 import serial
 import time
 
@@ -18,7 +19,12 @@ def callback(msg):
 
 def main():
     global arduino
-    arduino = serial.Serial("/dev/ttyACM1",  baudrate=115200, timeout=1)
+    devs = glob.glob("/dev/ttyACM*")
+    if len(devs) == 0:
+        raise IOError("No Arduino serial device found.")
+    dev = devs[0]
+    print("using device " + dev)
+    arduino = serial.Serial(dev,  baudrate=115200, timeout=1)
     # turn off initially
     arduino.write(bytes("0", "ascii"))
     rospy.init_node("fan_switcher")
