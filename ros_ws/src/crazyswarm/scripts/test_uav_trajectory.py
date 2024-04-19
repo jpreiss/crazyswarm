@@ -28,3 +28,6 @@ def test_TrigTrajectory_phase():
     tsin = TrigTrajectory.Sine(omega=1)
     for t in np.linspace(-100, 100, 1000):
         assert _veryclose(tsin(t)[0], np.sin(t))
+
+
+# TODO: test timestretch function

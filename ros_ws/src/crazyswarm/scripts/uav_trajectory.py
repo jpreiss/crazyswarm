@@ -127,9 +127,17 @@ class TrigTrajectory:
     self.scales = amplitude * (self.inner ** np.arange(deriv + 1))
     self.phase = 1j * phase
 
-  def __call__(self, t):
-    """Returns array of [function, f', f'', f''']."""
+  def __call__(self, t, timestretch=None):
+    """Returns array of [function, f', f'', f'''].
+
+    If called with timestretch = a positive float, scales the derivatives as if
+    time has been slowed by the given factor. I.e. with timestretch=2 velocity
+    will be halved, etc. Does not affect the function values itself, so caller
+    must still call with t values corresponding to the stretched time.
+    """
     cpx = self.scales * np.exp((self.inner * t) + self.phase)
+    if timestretch is not None:
+      cpx *= timestretch ** (-np.arange(len(self.scales)))
     return cpx.real
 
   @staticmethod
