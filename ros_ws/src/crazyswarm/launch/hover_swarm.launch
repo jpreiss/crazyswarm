@@ -2,12 +2,14 @@
 <launch>
   <arg name="joy_dev" default="/dev/input/js0" />
   <arg name="gaps" default="False"/>
+  <arg name="ada" default="False"/>
 
   <rosparam command="load" file="$(find crazyswarm)/launch/crazyflieTypes.yaml" />
   <rosparam command="load" file="$(find crazyswarm)/launch/crazyflies.yaml" />
 
   <node pkg="crazyswarm" type="crazyswarm_server" name="crazyswarm_server" output="screen" >
     <param name="gaps" value="$(arg gaps)"/>
+    <param name="ada" value="$(arg ada)"/>
     <rosparam>
       # Logging configuration (Use enable_logging to actually enable logging)
       genericLogTopics: ["gaps"]
@@ -66,7 +68,7 @@
     <param name="timescale" value="0.8" />
   </node>
 
-  <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps_$(arg gaps)"/>
+  <node name="bagger" pkg="rosbag" type="record" args="record -a -O gaps_$(arg gaps)_$(arg ada)"/>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
 

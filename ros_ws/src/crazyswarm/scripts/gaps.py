@@ -67,7 +67,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
     ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
-    repeats = 24
+    repeats = 12
     fan_cycle = 6
 
     # setpoint
@@ -151,6 +151,9 @@ def main(bad_init: bool = False):
     gaps = rospy.get_param("crazyswarm_server/gaps")
     assert isinstance(gaps, bool)
     print("gaps is", gaps)
+    ada = rospy.get_param("crazyswarm_server/ada")
+    assert isinstance(ada, bool)
+    print("ada is", ada)
 
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
@@ -171,15 +174,25 @@ def main(bad_init: bool = False):
         cf.setParams(dict(zip(full_params, values)))
 
     if gaps:
-        cf.setParams({
+        params = {
             "gaps/Qv": GAPS_Qv,
             "gaps/R": GAPS_R,
             "gaps/eta": GAPS_ETA,
             "gaps/damping": GAPS_DAMPING,
-            "gaps/optimizer": 1,  # AdaDelta
-            "gaps/ad_eps": 1e-8,
-            "gaps/ad_decay": 0.95,
-        })
+        }
+        if ada:
+            # AdaDelta in general will reduce the rate, so we boost to make a
+            # fair comparison.
+            opt_params = {
+                "gaps/optimizer": 1,  # adadelta
+                "gaps/ad_eps": 1e-8,
+                "gaps/ad_decay": 0.95,
+            }
+            params["gaps/eta"] *= 2
+        else:
+            opt_params = { "gaps/optimizer": 0 }  # OGD
+        params = {**params, **opt_params}
+        cf.setParams(params)
 
     # Always disable in the beginning. rollout() will enable after we are up to
     # speed in the figure 8 loop.

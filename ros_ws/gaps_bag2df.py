@@ -16,6 +16,12 @@ def convert(parampath, bagpath, outpath):
     assert all(v.startswith("gaps.") for v in vars)
     vars = [v[5:] for v in vars]
     gaps = params["/crazyswarm_server/gaps"]
+    ada = params["/crazyswarm_server/ada"]
+    # Bool indexing
+    kind = [
+        ["default", "N/A"],
+        ["GAPS-OGD", "GAPS-AdaDelta"],
+    ][gaps][ada]
 
     # Use the "trial" topic to isolate the part where we measure performance.
     bag = rosbag.Bag(bagpath)
@@ -52,12 +58,13 @@ def convert(parampath, bagpath, outpath):
                     records.append(dict(t=tsec, pos_x=trans.x, pos_y=trans.y, pos_z=trans.z))
     df = pd.DataFrame(records)
     df = df.groupby("t").first().reset_index()
-    df["gaps"] = gaps
+    df = df[df["t"] < df["t"].max() - 1]
+    df["kind"] = kind
     df.to_json(outpath)
 
 
 if __name__ == "__main__":
-    for mode in ["false", "true"]:
+    for mode in ["true_true", "true_false", "false_false"]:
         convert(
             f"/home/james/.ros/gaps_{mode}_params.yaml",
             f"/home/james/.ros/gaps_{mode}.bag",
