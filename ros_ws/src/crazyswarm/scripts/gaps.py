@@ -67,8 +67,8 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
     xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
     ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
-    repeats = 16
-    fan_cycle = 1
+    repeats = 24
+    fan_cycle = 6
 
     # setpoint
     derivs = np.zeros((4, 3))
@@ -118,7 +118,10 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
         # turn the fan on or off
         if trial:
             repeat = int(tsec / period) - 1
-            fan_on = repeat % (2 * fan_cycle) >= fan_cycle
+            # If the cycle is slow enough, run the fan for 1 extra period (e.g.
+            # 3 off, 5 on) because our fans take about 1 period to start up.
+            comparator = fan_cycle if fan_cycle <= 2 else fan_cycle - 1
+            fan_on = repeat % (2 * fan_cycle) >= comparator
         else:
             fan_on = False
         msg_bool.data = fan_on
@@ -153,12 +156,12 @@ def main(bad_init: bool = False):
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
 
-    Z = 0.7
+    Z = 0.9
 
     # params
     GAPS_Qv = 0.0
     GAPS_R = 0.0
-    GAPS_ETA = 1e-3
+    GAPS_ETA = 1e-2
     GAPS_DAMPING = 0.9995
 
     if bad_init:
@@ -173,6 +176,9 @@ def main(bad_init: bool = False):
             "gaps/R": GAPS_R,
             "gaps/eta": GAPS_ETA,
             "gaps/damping": GAPS_DAMPING,
+            "gaps/optimizer": 1,  # AdaDelta
+            "gaps/ad_eps": 1e-8,
+            "gaps/ad_decay": 0.95,
         })
 
     # Always disable in the beginning. rollout() will enable after we are up to
@@ -195,4 +201,4 @@ def main(bad_init: bool = False):
 
 
 if __name__ == "__main__":
-    main(bad_init=True)
+    main(bad_init=False)
