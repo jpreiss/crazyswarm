@@ -50,7 +50,7 @@ def plot_fig8(dfs, prefix, names):
 
 
 def plot_costs(dfs, prefix, names):
-    fig_cost, axs_cost = plt.subplots(3, 1, figsize=(4, 6), constrained_layout=True)
+    fig_cost, axs_cost = plt.subplots(3, 1, figsize=(8, 6), constrained_layout=True)
     ax_cost, ax_cum, ax_regret = axs_cost
     dfcat = pd.concat([df.interpolate() for df in dfs]).reset_index()
     sns.lineplot(dfcat, ax=ax_cost, x="t", y="cost", hue="gaps")
