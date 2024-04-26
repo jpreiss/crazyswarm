@@ -143,7 +143,7 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
         [0, 0, 0, 0, 0, 0, 0, -th.kw],
     ])
     Dtorque_x = -th.kr * Der_x + Dtorque_xw
-    Dtorque_th = np.array([[0, 0, 0, -er, -ew]])
+    Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
     Du_x = np.block([
         [Dthrust_x],
         [Dtorque_x],
