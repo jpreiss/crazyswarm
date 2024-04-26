@@ -76,7 +76,7 @@ def angleto(a, b):
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
-    """Returns: u, next x, Du_x, Du_th, Dx_x, Dx_u."""
+    """Returns: u, Du_x, Du_th."""
     # derived state
     up = np.array([-np.sin(x.r), np.cos(x.r)])
     Dup_x = np.array([
@@ -120,14 +120,14 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * outer(a, a)
 
     # attitude part components
-    er, Der_up, Der_upgoal = angleto(up, upgoal)
+    er, Der_upgoal, Der_up = angleto(upgoal, up)
 
     # double-check the derivatives
     def angleto_lambda(xflat):
         a, b = xflat.reshape((2, 2))
         return angleto(a, b)[0]
-    D = np.concatenate([Der_up, Der_upgoal])[None, :]
-    finitediff_check(np.concatenate([up, upgoal]), D, angleto_lambda, lambda i: "TODO")
+    D = np.concatenate([Der_upgoal, Der_up])[None, :]
+    finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
 
     ew = x.w - xd.w_d
     torque = -th.kr * er - th.kw * ew
