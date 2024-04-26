@@ -235,9 +235,9 @@ def random_param(rng):
     return Param.from_arr(rng.uniform(0.1, 4, size=5))
 
 
-EPS = 1e-4
-RTOL = EPS
-ATOL = 1e-2 * EPS
+EPS = 1e-8
+RTOL = 1e-4
+ATOL = 1e-6
 
 def color_rtol(x):
     if abs(x) > RTOL:
@@ -250,23 +250,21 @@ def color_atol(x):
     return f"{x:.4e}"
 
 
-def finitediff_check(x, D, f, dim_str, eps=1e-4):
+def finitediff_check(x, D, f, dim_str):
     n = x.size
     assert D.shape[1] == n
     y = f(x)
-    rtol = eps
-    atol = 1e-2 * eps
 
     for i in range(n):
         dx = 0 * x
-        dx[i] += eps
+        dx[i] += EPS
         y2 = f(x + dx)
         if False:
             y2_pred = y + D @ dx
             error = y2_pred - y2
             print(f"{y = }\n{y2 = }\n{y2_pred = }\n{error = }")
             assert np.allclose(y2_pred, y2, rtol=1e-3, atol=1e-3)
-        D_finite = (y2 - y) / eps
+        D_finite = (y2 - y) / EPS
         D_analytic = D[:, i]
         aerr = D_finite - D_analytic
         rerr = aerr / (D_analytic + (D_analytic == 0))
@@ -298,8 +296,6 @@ def main():
         #dth = np.array([*th2]) - np.array([*th])
 
         xa = x.to_arr()
-
-        eps = rng.choice([-1, 1]) * 1e-4
 
         u, Du_x, Du_th = ctrl(x, xd, th, const)
         xt, Dx_x, Dx_u = dynamics(x, xd, u, const)
