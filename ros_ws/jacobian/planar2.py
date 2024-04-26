@@ -69,6 +69,9 @@ def angleto(a, b):
     grad_atan2 = np.array([-Rb[1], Rb[0]])
     grad_a = grad_atan2.T @ DRb_a
     grad_b = grad_atan2.T @ R
+    assert grad_a.shape[-1] == 2
+    assert grad_b.shape[-1] == 2
+
     return angle, grad_a, grad_b
 
 
@@ -83,6 +86,12 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     assert Dup_x.shape[1] == len(x.to_arr())
     g = np.array([0, c.g])
 
+    # double-check the derivatives
+    def up_fn(x):
+        r = x[-2]
+        return np.array([-np.sin(r), np.cos(r)])
+    xa = x.to_arr()
+    finitediff_check(xa, Dup_x, up_fn, lambda i: "TODO")
 
 
     # CONTROLLER
@@ -112,6 +121,14 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
     # attitude part components
     er, Der_up, Der_upgoal = angleto(up, upgoal)
+
+    # double-check the derivatives
+    def angleto_lambda(xflat):
+        a, b = xflat.reshape((2, 2))
+        return angleto(a, b)[0]
+    D = np.concatenate([Der_up, Der_upgoal])[None, :]
+    finitediff_check(np.concatenate([up, upgoal]), D, angleto_lambda, lambda i: "TODO")
+
     ew = x.w - xd.w_d
     torque = -th.kr * er - th.kw * ew
     u = Action(thrust=thrust, torque=torque)
@@ -314,7 +331,7 @@ def main():
         finitediff_check(x.to_arr(), Dx_x, dyn_x2x, State.dim_str)
 
         print("dx/du")
-        finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Input.dim_str)
+        finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Action.dim_str)
 
 
 if __name__ == "__main__":
