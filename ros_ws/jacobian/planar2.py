@@ -98,20 +98,28 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
     # ----------
     # position part components
-    feedback = (
-        - th.ki * x.ierr
-        - th.kp * (x.p - xd.p_d)
-        - th.kv * (x.v - xd.v_d)
-    )
+    perr = x.p - xd.p_d
+    verr = x.v - xd.v_d
+    feedback = - th.ki * x.ierr - th.kp * perr - th.kv * verr
     a = feedback + xd.a_d + g
-    Da_x = np.array([
-        [-th.ki,      0, -th.kp,      0, -th.kv,      0, 0, 0],
-        [     0, -th.ki,      0, -th.kp,      0, -th.kv, 0, 0],
+    I = np.eye(2)
+    Da_x = np.block([
+        [-th.ki * I, -th.kp * I, -th.kv * I, 0 * I]
     ])
-    Da_th = np.array([
-        [-x.ierr[0], -x.p[0], -x.v[0], 0, 0],
-        [-x.ierr[1], -x.p[1], -x.v[1], 0, 0],
+    Da_th = np.block([
+        [-x.ierr[:, None], -perr[:, None], -verr[:, None], 0 * I]
     ])
+
+    # double-check the derivatives
+    def a_fn(th2):
+        th2 = Param.from_arr(th2)
+        feedback = (
+            - th2.ki * x.ierr
+            - th2.kp * (x.p - xd.p_d)
+            - th2.kv * (x.v - xd.v_d)
+        )
+        return feedback + xd.a_d + g
+    #finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
 
     thrust = np.linalg.norm(a)
     Dthrust_a = (a / thrust).reshape((1, 2))
@@ -312,8 +320,9 @@ def main():
 
         print("du/dx")
         finitediff_check(x.to_arr(), Du_x, ctrl_x2u, State.dim_str)
-        #print("du/dth")
-        #finitediff_check(th.to_arr(), Du_th, ctrl_th2u)
+
+        print("du/dth")
+        finitediff_check(th.to_arr(), Du_th, ctrl_th2u, Param.dim_str)
 
         def dyn_x2x(xa):
             x2 = State.from_arr(xa)
