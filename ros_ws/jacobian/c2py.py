@@ -43,9 +43,9 @@ def main():
 
         # Create temporary vars to break up jacobians, otherwise SymPy hangs.
         # TODO: investigate if it's needed...
-        if lhs == "F_d":
-            print(f"F_d_old = {rhs}")
-            print("F_d = symvec('F_d')")
+        if lhs == "zdes":
+            print(f"zdes_old = {rhs}")
+            print("zdes = symvec('zdes')")
             continue
 
         print(f"{lhs} = {rhs}")
