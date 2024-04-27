@@ -3,17 +3,7 @@ from collections import namedtuple
 import colorama
 import numpy as np
 
-import planar
-
-
-def angleto(a, b):
-    cpp = planar.angleto(a, b)
-    py = angleto_old(a, b)
-    for c, p in zip(cpp, py):
-        assert np.allclose(c, p)
-        if isinstance(c, np.ndarray):
-            assert c.dtype == np.double
-    return cpp
+from planar import angleto
 
 
 def namedvec(name, fields, sizes):
@@ -54,35 +44,6 @@ Action = namedvec("Action", "thrust torque", "1 1")
 Target = namedvec("Target", "p_d v_d a_d w_d", "2 2 2 1")
 Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
-
-
-def angleto_old(a, b):
-    """Returns angle rotating vec. a to vec. b and gradients.
-
-    Vectors must be unit length.
-
-    Returns: angle, dangle/da, dangle/db
-    """
-    # compute atan2 of b in the coordinate frame of a.
-    ax, ay = a
-    bx, by = b
-    R = np.array([
-        [ ax, ay],
-        [-ay, ax],
-    ])
-    Rb = R @ b 
-    DRb_a = np.array([
-        [bx,  by],
-        [by, -bx]
-    ])
-    angle = np.arctan2(Rb[1], Rb[0])
-    grad_atan2 = np.array([-Rb[1], Rb[0]])
-    grad_a = grad_atan2.T @ DRb_a
-    grad_b = grad_atan2.T @ R
-    assert grad_a.shape[-1] == 2
-    assert grad_b.shape[-1] == 2
-
-    return angle, grad_a, grad_b
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
