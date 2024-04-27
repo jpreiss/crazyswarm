@@ -3,6 +3,7 @@ from collections import namedtuple
 import colorama
 import numpy as np
 
+import planar
 from planar import angleto
 
 
@@ -135,57 +136,10 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
 
 def dynamics(x: State, xd: Target, u: Action, c: Const):
-    # DYNAMICS
-    # --------
-
-    # derived state - TODO factor out?
-    up = np.array([-np.sin(x.r), np.cos(x.r)])
-    Dup_x = np.array([
-        [0, 0, 0, 0, 0, 0, -np.cos(x.r), 0],
-        [0, 0, 0, 0, 0, 0, -np.sin(x.r), 0],
-    ])
-    g = np.array([0, c.g])
-
-    # Normally I would use symplectic Euler integration, but plain forward
-    # Euler gives simpler Jacobians.
-
-    acc = u.thrust * up - g
-    Dacc_x = u.thrust * Dup_x
-    x_t = State(
-        ierr = x.ierr + c.dt * (x.p - xd.p_d),
-        p = x.p + c.dt * x.v,
-        v = x.v + c.dt * acc,
-        r = x.r + c.dt * x.w,
-        w = x.w + c.dt * u.torque,
-    )
-    Dvt_r = c.dt * Dacc_x[:, [-2]]
-    I2 = np.eye(2)
-    I1 = np.eye(1)
-    Z22 = np.zeros((2, 2))
-    Z21 = np.zeros((2, 1))
-    Z12 = np.zeros((1, 2))
-    Z11 = np.zeros((1, 1))
-    dt2 = c.dt * I2
-    dt1 = c.dt * I1
-    Dx_x = np.block([
-        [ I2, dt2, Z22,   Z21, Z21],
-        [Z22,  I2, dt2,   Z21, Z21],
-        [Z22, Z22,  I2, Dvt_r, Z21],
-        [Z12, Z12, Z12,    I1, dt1],
-        [Z12, Z12, Z12,   Z11,  I1],
-    ])
-    Dx_u = np.block([
-        [           0,    0],
-        [           0,    0],
-        [           0,    0],
-        [           0,    0],
-        [c.dt * up[0],    0],
-        [c.dt * up[1],    0],
-        [           0,    0],
-        [           0, c.dt],
-    ])
-
-    return x_t, Dx_x, Dx_u
+    args = [*x] + [*xd] + [*u] + [c.dt,]
+    vals, Dx_x, Dx_u = planar.dynamics(*args)
+    xt = State(*vals)
+    return xt, Dx_x, Dx_u
 
 
 # TODO: costs?

@@ -5,7 +5,9 @@
 
 #include "planar.hpp"
 
+namespace py = pybind11;
 
 PYBIND11_MODULE(planar, m) {
     m.def("angleto", &angleto);
+    m.def("dynamics", &dynamics);
 }
