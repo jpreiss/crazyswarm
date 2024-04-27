@@ -3,6 +3,18 @@ from collections import namedtuple
 import colorama
 import numpy as np
 
+import planar
+
+
+def angleto(a, b):
+    cpp = planar.angleto(a, b)
+    py = angleto_old(a, b)
+    for c, p in zip(cpp, py):
+        assert np.allclose(c, p)
+        if isinstance(c, np.ndarray):
+            assert c.dtype == np.double
+    return cpp
+
 
 def namedvec(name, fields, sizes):
     """Namedtuple plus helpers for going to/from concatenated arrays."""
@@ -44,7 +56,7 @@ Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 
-def angleto(a, b):
+def angleto_old(a, b):
     """Returns angle rotating vec. a to vec. b and gradients.
 
     Vectors must be unit length.
