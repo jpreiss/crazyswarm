@@ -5,10 +5,12 @@ import numpy as np
 
 
 def namedvec(name, fields, sizes):
+    """Namedtuple plus helpers for going to/from concatenated arrays."""
     fields = fields.split(" ")
     sizes = sizes.split(" ")
     assert len(fields) == len(sizes)
     sizes = [int(s) for s in sizes]
+    splits = np.cumsum(sizes)
     base = namedtuple(name, fields)
 
     def to_arr(self):
@@ -16,7 +18,6 @@ def namedvec(name, fields, sizes):
             assert isinstance(v, np.ndarray) or isinstance(v, float)
         return np.block([*self])
 
-    splits = np.cumsum(sizes)
     @classmethod
     def from_arr(cls, arr):
         blocks = map(np.squeeze, np.split(arr, splits[:-1]))
@@ -24,6 +25,7 @@ def namedvec(name, fields, sizes):
 
     @classmethod
     def dim_str(cls, dim):
+        """Converts index into the concatenated vector to subfield index."""
         idx = np.argmin(dim >= splits)
         inner_idx = dim - splits[idx] + sizes[idx]
         return f"{fields[idx]}[{inner_idx}]"
@@ -40,10 +42,6 @@ Action = namedvec("Action", "thrust torque", "1 1")
 Target = namedvec("Target", "p_d v_d a_d w_d", "2 2 2 1")
 Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
-
-
-def outer(a, b):
-    return a[:, None] @ b[None, :]
 
 
 def angleto(a, b):
@@ -119,13 +117,13 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
             - th2.kv * (x.v - xd.v_d)
         )
         return feedback + xd.a_d + g
-    #finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
+    finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
 
     thrust = np.linalg.norm(a)
     Dthrust_a = (a / thrust).reshape((1, 2))
 
     upgoal = a / thrust
-    Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * outer(a, a)
+    Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * np.outer(a, a)
 
     # attitude part components
     er, Der_upgoal, Der_up = angleto(upgoal, up)
@@ -244,13 +242,16 @@ def random_param(rng):
 
 
 EPS = 1e-8
+# slight loosening of defaults
 RTOL = 1e-4
 ATOL = 1e-6
+
 
 def color_rtol(x):
     if abs(x) > RTOL:
         return f"{colorama.Fore.RED}{x:.4e}{colorama.Fore.RESET}"
     return f"{x:.4e}"
+
 
 def color_atol(x):
     if abs(x) > ATOL:
@@ -295,19 +296,8 @@ def main():
         xd = random_target(rng)
         th = random_param(rng)
 
-        #x2 = random_state(rng)
-        #xd2 = random_target(rng)
-        #th2 = random_param(rng)
-
-        #dx = np.array([*x2]) - np.array([*x])
-        #dxd = np.array([*xd2]) - np.array([*xd])
-        #dth = np.array([*th2]) - np.array([*th])
-
-        xa = x.to_arr()
-
         u, Du_x, Du_th = ctrl(x, xd, th, const)
         xt, Dx_x, Dx_u = dynamics(x, xd, u, const)
-
         print(f"{x = }\n{xd = }\n{th = }\n{u = }")
 
         def ctrl_x2u(xa):
