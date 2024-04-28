@@ -64,29 +64,6 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
 # TODO: costs?
 
 
-def random_state(rng):
-    return State(
-        ierr = 0.1 * rng.normal(size=2),
-        p = 1.0 * rng.normal(size=2),
-        v = 0.1 * rng.normal(size=2),
-        r = 0.1 * rng.uniform(-np.pi / 3, np.pi / 3),
-        w = 0.1 * rng.normal(),
-    )
-
-
-def random_target(rng):
-    return Target(
-        p_d = 0.1 * rng.normal(size=2),
-        v_d = 0.1 * rng.normal(size=2),
-        a_d = 0.1 * rng.normal(size=2),
-        w_d = 0.1 * rng.normal(),
-    )
-
-
-def random_param(rng):
-    return Param.from_arr(rng.uniform(0.1, 4, size=5))
-
-
 EPS = 1e-8
 # slight loosening of defaults
 RTOL = 1e-4
@@ -138,9 +115,9 @@ def main():
     const = Const(g=9.81, m=1, j=None, dt=0.01)
     rng = np.random.default_rng(0)
     for i in range(100):
-        x = random_state(rng)
-        xd = random_target(rng)
-        th = random_param(rng)
+        x = State.from_arr(rng.normal(size=8))
+        xd = Target.from_arr(rng.normal(size=7))
+        th = Param.from_arr(rng.uniform(0.1, 4, size=5))
 
         u, Du_x, Du_th = ctrl(x, xd, th, const)
         xt, Dx_x, Dx_u = dynamics(x, xd, u, const)
