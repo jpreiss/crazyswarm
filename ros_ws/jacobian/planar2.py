@@ -48,90 +48,9 @@ Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
-    """Returns: u, Du_x, Du_th."""
-    # derived state
-    up = np.array([-np.sin(x.r), np.cos(x.r)])
-    Dup_x = np.array([
-        [0, 0, 0, 0, 0, 0, -np.cos(x.r), 0],
-        [0, 0, 0, 0, 0, 0, -np.sin(x.r), 0],
-    ])
-    assert Dup_x.shape[1] == len(x.to_arr())
-    g = np.array([0, c.g])
-
-    # double-check the derivatives
-    def up_fn(x):
-        r = x[-2]
-        return np.array([-np.sin(r), np.cos(r)])
-    xa = x.to_arr()
-    finitediff_check(xa, Dup_x, up_fn, lambda i: "TODO")
-
-
-    # CONTROLLER
-
-    # ----------
-    # position part components
-    perr = x.p - xd.p_d
-    verr = x.v - xd.v_d
-    feedback = - th.ki * x.ierr - th.kp * perr - th.kv * verr
-    a = feedback + xd.a_d + g
-    I = np.eye(2)
-    Da_x = np.block([
-        [-th.ki * I, -th.kp * I, -th.kv * I, 0 * I]
-    ])
-    Da_th = np.block([
-        [-x.ierr[:, None], -perr[:, None], -verr[:, None], 0 * I]
-    ])
-
-    # double-check the derivatives
-    def a_fn(th2):
-        th2 = Param.from_arr(th2)
-        feedback = (
-            - th2.ki * x.ierr
-            - th2.kp * (x.p - xd.p_d)
-            - th2.kv * (x.v - xd.v_d)
-        )
-        return feedback + xd.a_d + g
-    finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
-
-    thrust = np.linalg.norm(a)
-    Dthrust_a = (a / thrust).reshape((1, 2))
-
-    upgoal = a / thrust
-    Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * np.outer(a, a)
-
-    # attitude part components
-    er, Der_upgoal, Der_up = angleto(upgoal, up)
-
-    # double-check the derivatives
-    def angleto_lambda(xflat):
-        a, b = xflat.reshape((2, 2))
-        return angleto(a, b)[0]
-    D = np.concatenate([Der_upgoal, Der_up])[None, :]
-    finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
-
-    ew = x.w - xd.w_d
-    torque = -th.kr * er - th.kw * ew
-    u = Action(thrust=thrust, torque=torque)
-
-    # controller chain rules
-    Dthrust_x = Dthrust_a @ Da_x
-    Dthrust_th = Dthrust_a @ Da_th
-
-    Der_x = Der_up @ Dup_x + Der_upgoal @ Dupgoal_a @ Da_x
-    Der_th = Der_upgoal @ Dupgoal_a @ Da_th
-    Dtorque_xw = np.array([
-        [0, 0, 0, 0, 0, 0, 0, -th.kw],
-    ])
-    Dtorque_x = -th.kr * Der_x + Dtorque_xw
-    Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
-    Du_x = np.block([
-        [Dthrust_x],
-        [Dtorque_x],
-    ])
-    Du_th = np.block([
-        [Dthrust_th],
-        [Dtorque_th],
-    ])
+    args = [*x] + [*xd] + [*th]
+    vals, Du_x, Du_th = planar.ctrl(*args)
+    u = Action(*vals)
     return u, Du_x, Du_th
 
 

@@ -19,7 +19,7 @@ using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
 using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 
 using State = std::tuple<Vec, Vec, Vec, FLOAT, FLOAT>;
-using Input = std::tuple<FLOAT, FLOAT>;
+using Action = std::tuple<FLOAT, FLOAT>;
 
 // Returns angle rotating vec. a to vec. b and gradients.
 // Vectors must be unit length.
@@ -95,4 +95,74 @@ dynamics(
 	Dx_u(7, 1) = dt;
 
 	return std::make_tuple(x_t, Dx_x, Dx_u);
+}
+
+
+std::tuple<Action, Jux, Jut>
+ctrl(
+	Vec ierr, Vec p, Vec v, FLOAT r, FLOAT w, // state
+	Vec p_d, Vec v_d, Vec a_d, FLOAT w_d, // target
+	FLOAT ki, FLOAT kp, FLOAT kv, FLOAT kr, FLOAT kw // params
+	)
+{
+	// derived state
+	Vec up {-std::sin(r), std::cos(r)};
+	Eigen::Matrix<FLOAT, 2, XDIM> Dup_x;
+	Dup_x <<
+		0, 0, 0, 0, 0, 0, -std::cos(r), 0,
+		0, 0, 0, 0, 0, 0, -std::sin(r), 0;
+	Vec g {0, GRAV};
+
+	// position part components
+	Vec perr = p - p_d;
+	Vec verr = v - v_d;
+	Vec feedback = - ki * ierr - kp * perr - kv * verr;
+	Vec a = feedback + a_d + g;
+
+	Mat I = Mat::Identity();
+	Eigen::Matrix<FLOAT, 2, XDIM> Da_x;
+	Da_x << -ki * I, -kp * I, -kv * I, Mat::Zero();
+
+	Eigen::Matrix<FLOAT, 2, TDIM> Da_th;
+	Da_th << -ierr, -perr, -verr, Mat::Zero();
+
+	FLOAT thrust = a.norm();
+	Vec Dthrust_a = a / thrust;
+
+	Vec upgoal = a / thrust;
+	Mat aaT = a * a.transpose();
+	Mat Dupgoal_a = (1.0 / thrust) * Mat::Identity() - (1 / (thrust * thrust * thrust)) * aaT;
+
+	// attitude part components
+	FLOAT er;
+	Eigen::Matrix<FLOAT, 1, 2> Der_upgoal;
+	Eigen::Matrix<FLOAT, 1, 2> Der_up;
+	std::tie(er, Der_upgoal, Der_up) = angleto(upgoal, up);
+
+	FLOAT ew = w - w_d;
+	FLOAT torque = -kr * er - kw * ew;
+	Action u {thrust, torque};
+
+	// controller chain rules
+	auto Dthrust_x = Dthrust_a.transpose() * Da_x;
+	auto Dthrust_th = Dthrust_a.transpose() * Da_th;
+
+	auto Der_x = Der_up * Dup_x + Der_upgoal * Dupgoal_a * Da_x;
+	auto Der_th = Der_upgoal * Dupgoal_a * Da_th;
+
+	Eigen::Matrix<FLOAT, 1, XDIM> Dtorque_xw;
+	Dtorque_xw << 0, 0, 0, 0, 0, 0, 0, -kw;
+
+	auto Dtorque_x = -kr * Der_x + Dtorque_xw;
+	Eigen::Matrix<FLOAT, 1, TDIM> Dtorque_th;
+	Dtorque_th << 0, 0, 0, -er, -ew;
+	Dtorque_th += -kr * Der_th;
+
+	Jux Du_x;
+	Du_x << Dthrust_x, Dtorque_x;
+
+	Jut Du_th;
+	Du_th << Dthrust_th, Dtorque_th;
+
+	return std::make_tuple(u, Du_x, Du_th);
 }
