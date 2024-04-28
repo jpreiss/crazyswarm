@@ -91,11 +91,6 @@ def finitediff_check(x, D, f, dim_str):
         dx = 0 * x
         dx[i] += EPS
         y2 = f(x + dx)
-        if False:
-            y2_pred = y + D @ dx
-            error = y2_pred - y2
-            print(f"{y = }\n{y2 = }\n{y2_pred = }\n{error = }")
-            assert np.allclose(y2_pred, y2, rtol=1e-3, atol=1e-3)
         D_finite = (y2 - y) / EPS
         D_analytic = D[:, i]
         aerr = D_finite - D_analytic
