@@ -33,10 +33,16 @@ def namedvec(name, fields, sizes):
         inner_idx = dim - splits[idx] + sizes[idx]
         return f"{fields[idx]}[{inner_idx}]"
 
+    sz = np.sum(sizes)
+    @classmethod
+    @property
+    def size(cls):
+        return sz
+
     return type(
         name,
         (base,),
-        dict(to_arr=to_arr, from_arr=from_arr, dim_str=dim_str),
+        dict(to_arr=to_arr, from_arr=from_arr, dim_str=dim_str, size=size),
     )
 
 
@@ -110,9 +116,9 @@ def main():
     const = Const(g=9.81, m=1, j=None, dt=0.01)
     rng = np.random.default_rng(0)
     for i in range(100):
-        x = State.from_arr(rng.normal(size=8))
-        xd = Target.from_arr(rng.normal(size=7))
-        th = Param.from_arr(rng.uniform(0.1, 4, size=5))
+        x = State.from_arr(rng.normal(size=State.size))
+        xd = Target.from_arr(rng.normal(size=Target.size))
+        th = Param.from_arr(rng.uniform(0.1, 4, size=Param.size))
 
         u, Du_x, Du_th = ctrl(x, xd, th, const)
         xt, Dx_x, Dx_u = dynamics(x, xd, u, const)
