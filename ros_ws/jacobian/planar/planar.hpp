@@ -107,10 +107,7 @@ ctrl(
 {
 	// derived state
 	Vec up {-std::sin(r), std::cos(r)};
-	Eigen::Matrix<FLOAT, 2, XDIM> Dup_x;
-	Dup_x <<
-		0, 0, 0, 0, 0, 0, -std::cos(r), 0,
-		0, 0, 0, 0, 0, 0, -std::sin(r), 0;
+	Vec Dup_r {-std::cos(r), -std::sin(r)};
 	Vec g {0, GRAV};
 
 	// position part components
@@ -147,7 +144,10 @@ ctrl(
 	auto Dthrust_x = Dthrust_a.transpose() * Da_x;
 	auto Dthrust_th = Dthrust_a.transpose() * Da_th;
 
-	auto Der_x = Der_up * Dup_x + Der_upgoal * Dupgoal_a * Da_x;
+	//auto Der_x = Der_up * Dup_x + Der_upgoal * Dupgoal_a * Da_x;
+	Eigen::Matrix<FLOAT, 1, XDIM> Der_x = Der_upgoal * Dupgoal_a * Da_x;
+	Der_x(0, 6) += Der_up.dot(Dup_r);
+
 	auto Der_th = Der_upgoal * Dupgoal_a * Da_th;
 
 	Eigen::Matrix<FLOAT, 1, XDIM> Dtorque_xw;
