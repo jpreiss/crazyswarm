@@ -202,7 +202,7 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
         ierr = x.ierr + c.dt * (x.p - xd.p_d),
         p = x.p + c.dt * x.v,
         v = x.v + c.dt * acc,
-        R = R_t.flatten(),
+        R = R_t.T.flatten(),
         w = x.w + c.dt * u.torque,
     )
     # TODO: This became trivial after we went from angle state to rotation
@@ -217,6 +217,8 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     Z39 = np.zeros((3, 9))
     Z93 = Z39.T
 
+    DR_R = np.eye(9) + c.dt * np.kron(SO3.hat(-x.w), I3)
+
     Rx, Ry, Rz = (R.T)[:, :, None]
     DR_w = c.dt * np.block([
         [Z31, -Rz,  Ry],
@@ -230,7 +232,7 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
         [ I3, dt3, Z33,   Z39,  Z33],
         [Z33,  I3, dt3,   Z39,  Z33],
         [Z33, Z33,  I3, Dvt_R,  Z33],
-        [Z93, Z93, Z93,    I9, DR_w],
+        [Z93, Z93, Z93,  DR_R, DR_w],
         [Z33, Z33, Z33,   Z39,   I3],
     ])
     # (Refers to Dx_x construction above.) Skipping Coriolis term that would
