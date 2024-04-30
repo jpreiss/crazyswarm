@@ -4,6 +4,31 @@ import colorama
 import numpy as np
 
 from planar import angleto
+from SO3 import error
+
+
+def up_to_R3(up):
+    """Converts an 'up' vector to a 3d rotation matrix, plus jacobian."""
+    R = np.array([
+        [ up[1], 0, up[0]],
+        [    0,  1,     0],
+        [-up[0], 0, up[1]],
+    ])
+    J = np.array([
+        [ 0, 1],
+        [ 0, 0],
+        [-1, 0],
+        [ 0, 0],
+        [ 0, 0],
+        [ 0, 0],
+        [ 1, 0],
+        [ 0, 0],
+        [ 0, 1],
+    ])
+    JR = (J @ up).reshape((3, 3)).T
+    JR[1, 1] = 1
+    assert np.all(R.flat == JR.flat)
+    return R, J
 
 
 def namedvec(name, fields, sizes):
@@ -99,14 +124,25 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * np.outer(a, a)
 
     # attitude part components
-    er, Der_upgoal, Der_up = angleto(upgoal, up)
+    Rd3, DRd3_upgoal = up_to_R3(upgoal)
+    R3, DR3_up = up_to_R3(up)
+    er3, Der3_R3, Der3_Rd3 = error(R3, Rd3)
+    assert np.isclose(er3[0], 0)
+    assert np.isclose(er3[2], 0)
+    er = -er3[1]
+    Der_up = -(Der3_R3 @ DR3_up)[[1], :]
+    Der_upgoal = -(Der3_Rd3 @ DRd3_upgoal)[[1], :]
+
+
+    erold, *_ = angleto(upgoal, up)
+    assert np.sign(erold) == np.sign(er)
 
     # double-check the derivatives
-    def angleto_lambda(xflat):
-        a, b = xflat.reshape((2, 2))
-        return angleto(a, b)[0]
-    D = np.concatenate([Der_upgoal, Der_up])[None, :]
-    finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
+    # def angleto_lambda(xflat):
+    #     a, b = xflat.reshape((2, 2))
+    #     return angleto(a, b)[0]
+    # D = np.concatenate([Der_upgoal, Der_up])[None, :]
+    # finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
 
     ew = x.w - xd.w_d
     torque = -th.kr * er - th.kw * ew
