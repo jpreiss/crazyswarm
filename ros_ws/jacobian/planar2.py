@@ -6,7 +6,7 @@ from colorama import Fore
 import numpy as np
 
 import gapsquad
-from gapsquad import angleto
+from gapsquad import SO3error, cross, hat, normalize
 import SO3
 
 
@@ -50,26 +50,6 @@ Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 
-def normalize(v):
-    vn = np.linalg.norm(v)
-    dim = v.shape[-1]
-    J = (1.0 / vn) * np.eye(dim) - (1 / vn ** 3) * np.outer(v, v)
-    return v / vn, J
-
-
-def cross(a, b):
-    ax, ay, az = a
-    bx, by, bz = b
-    x = np.array([
-        ay * bz - az * by,
-        az * bx - ax * bz,
-        ax * by - ay * bx,
-    ])
-    Ja = -SO3.hat(b)
-    Jb = SO3.hat(a)
-    return x, Ja, Jb
-
-
 def ctrl(x: State, xd: Target, th: Param, c: Const):
     """Returns: u, Du_x, Du_th."""
     g = np.array([0, 0, c.g])
@@ -105,14 +85,16 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Dthrust_a = (a / thrust).reshape((1, 3))
 
     zgoal, Dzgoal_a = normalize(a)
-    assert np.all(zgoal == a / thrust)
+    assert np.allclose(zgoal, a / thrust)
     xgoalflat = np.array([np.cos(xd.y_d), np.sin(xd.y_d), 0])
 
     ygoalnn, Dygoalnn_zgoal, _ = cross(zgoal, xgoalflat)
+    assert ygoalnn.shape == (3,)
     ygoal, Dygoal_ygoalnn = normalize(ygoalnn)
     Dygoal_a = Dygoal_ygoalnn @ Dygoalnn_zgoal @ Dzgoal_a
 
     xgoal, Dxgoal_ygoal, Dxgoal_zgoal = cross(ygoal, zgoal)
+    assert xgoal.shape == (3,)
     assert np.isclose(np.linalg.norm(xgoal), 1)
     Dxgoal_a = Dxgoal_ygoal @ Dygoal_a + Dxgoal_zgoal @ Dzgoal_a
 
@@ -132,7 +114,7 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     R3 = x.R.reshape((3, 3)).T
     Z93 = np.zeros((9, 3))
     DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
-    er3, Der3_R3, Der3_Rd3 = SO3.error(R3, Rd3)
+    er3, Der3_R3, Der3_Rd3 = SO3error(R3, Rd3)
 
     #erold, *_ = angleto(zgoal, up)
     #assert np.sign(erold) == np.sign(er3[1])
@@ -197,7 +179,7 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     # want to actually integrate the dynamics we must project R_t onto SO(3)
     # *after* checking derivatives. But I believe it may be too computationally
     # expensive to run on the Crazyflie anyway.
-    R_t = R + c.dt * R @ SO3.hat(x.w)
+    R_t = R + c.dt * R @ hat(x.w)
     x_t = State(
         ierr = x.ierr + c.dt * (x.p - xd.p_d),
         p = x.p + c.dt * x.v,
@@ -217,7 +199,7 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     Z39 = np.zeros((3, 9))
     Z93 = Z39.T
 
-    DRt_R = np.eye(9) + c.dt * np.kron(SO3.hat(-x.w), I3)
+    DRt_R = np.eye(9) + c.dt * np.kron(hat(-x.w), I3)
 
     Rx, Ry, Rz = (R.T)[:, :, None]
     DRt_w = c.dt * np.block([

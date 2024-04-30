@@ -5,22 +5,106 @@
 
 
 using FLOAT = double;
-int constexpr XDIM = 8;
-int constexpr UDIM = 2;
+int constexpr XDIM = 3 + 3 + 3 + 9 + 3;
+int constexpr UDIM = 1 + 3;
 int constexpr TDIM = 5;
 FLOAT constexpr GRAV = 9.81;
 
-using Vec = Eigen::Matrix<FLOAT, 2, 1>;
-using Mat = Eigen::Matrix<FLOAT, 2, 2, Eigen::RowMajor>;
+using Vec = Eigen::Matrix<FLOAT, 3, 1>;
+using VecT = Eigen::Matrix<FLOAT, 1, 3>;
+using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
+using Mat39 = Eigen::Matrix<FLOAT, 3, 9, Eigen::RowMajor>;
+//using Mat99 = Eigen::Matrix<FLOAT, 9, 9, Eigen::RowMajor>;
 
 using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
 using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
 using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
 using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 
-using State = std::tuple<Vec, Vec, Vec, FLOAT, FLOAT>;
-using Action = std::tuple<FLOAT, FLOAT>;
+using State = std::tuple<Vec, Vec, Vec, Mat, Vec>;
+using Action = std::tuple<FLOAT, Vec>;
 
+
+std::tuple<Vec, Vec, Vec> colsplit(Mat const &m)
+{
+	return std::make_tuple(m.col(0), m.col(1), m.col(2));
+}
+
+
+/*
+Returns error on Lie algebra, plus Jacobians (3 x 9).
+
+Note this error starts *decreasing* as the angle exceeds 90 degrees, so it is
+nonsensical. Also it has a negative second derivative so it really only makes
+sense for small angles like 45 degrees or less (see [1] for details).
+
+However, we use it here because its Jacobian is so simple.
+
+[1] Globally-Attractive Logarithmic Geometric Control of a Quadrotor for
+Aggressive Trajectory Tracking. Jacob Johnson and Randal Beard.
+https://arxiv.org/abs/2109.07025
+*/
+std::tuple<Vec, Mat39, Mat39> SO3error(Mat const &R, Mat const &Rd)
+{
+	Mat errmat = 0.5 * (Rd.transpose() * R - R.transpose() * Rd);
+	Vec err {errmat(2, 1), errmat(0, 2), errmat(1, 0)};
+	Vec Rx, Ry, Rz;
+	std::tie(Rx, Ry, Rz) = colsplit(R);
+	Vec Rdx, Rdy, Rdz;
+	std::tie(Rdx, Rdy, Rdz) = colsplit(Rd);
+	VecT Z = VecT::Zero();
+	Mat39 JR, JRd;
+	JR <<
+		               Z,  Rdz.transpose(), -Rdy.transpose(),
+		-Rdz.transpose(),                Z,  Rdx.transpose(),
+		 Rdy.transpose(), -Rdx.transpose(),               Z;
+	JR *= 0.5;
+	JRd << 
+		              Z, -Rz.transpose(),  Ry.transpose(),
+		 Rz.transpose(),               Z, -Rx.transpose(),
+		-Ry.transpose(),  Rx.transpose(),              Z;
+	JRd *= 0.5;
+	return std::make_tuple(-err, -JR, -JRd);
+}
+
+Mat hat(Vec const &w)
+{
+	FLOAT x = w[0], y = w[1], z = w[2];
+	Mat m;
+	m << 0, -z,  y,
+		 z,  0, -x,
+		-y,  x,  0;
+	return m;
+}
+
+std::tuple<Vec, Mat> normalize(Vec const &v)
+{
+	FLOAT vn = 1.0 / v.norm();
+	FLOAT vn3 = vn * vn * vn;
+	Mat J = vn * Mat::Identity() - vn3 * v * v.transpose();
+	return std::make_tuple(vn * v, J);
+}
+
+std::tuple<Vec, Mat, Mat> cross(Vec const &a, Vec const &b)
+{
+	FLOAT ax = a[0], ay = a[1], az = a[2];
+	FLOAT bx = b[0], by = b[1], bz = b[2];
+	Vec x {
+		ay * bz - az * by,
+		az * bx - ax * bz,
+		ax * by - ay * bx
+	};
+	Mat Ja = -hat(b);
+	Mat Jb = hat(a);
+	return std::make_tuple(x, Ja, Jb);
+}
+
+
+
+
+
+
+/*
 // Returns angle rotating vec. a to vec. b and gradients.
 // Vectors must be unit length.
 // Returns: angle, dangle/da, dangle/db
@@ -166,3 +250,4 @@ ctrl(
 
 	return std::make_tuple(u, Du_x, Du_th);
 }
+*/

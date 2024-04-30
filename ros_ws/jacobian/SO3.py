@@ -3,37 +3,6 @@ import numpy as np
 import scipy as sp
 
 
-def error(R, Rd):
-    """Returns error on Lie algebra, plus Jacobians (3 x 9).
-
-    Note this error starts *decreasing* as the angle exceeds 90 degrees, so it
-    is nonsensical. Also it has a negative second derivative so it really only
-    makes sense for small angles like 45 degrees or less (see [1] for details).
-
-    However, we use it here because its Jacobian is so simple.
-
-    [1] Globally-Attractive Logarithmic Geometric Control of a Quadrotor for
-    Aggressive Trajectory Tracking. Jacob Johnson and Randal Beard.
-    https://arxiv.org/abs/2109.07025
-    """
-    errmat = 0.5 * (Rd.T @ R - R.T @ Rd)
-    err = np.array([errmat[2, 1], errmat[0, 2], errmat[1, 0]])
-    Rx, Ry, Rz = R.T
-    Rdx, Rdy, Rdz = Rd.T
-    Z = np.zeros((1, 3))
-    JR = 0.5 * np.block([
-        [     Z,  Rdz.T, -Rdy.T],
-        [-Rdz.T,      Z,  Rdx.T],
-        [ Rdy.T, -Rdx.T,      Z],
-    ])
-    JRd = 0.5 * np.block([
-        [    Z, -Rz.T,  Ry.T],
-        [ Rz.T,     Z, -Rx.T],
-        [-Ry.T,  Rx.T,     Z],
-    ])
-    return -err, -JR, -JRd
-
-
 def hat(w):
     x, y, z = w
     return np.array([
