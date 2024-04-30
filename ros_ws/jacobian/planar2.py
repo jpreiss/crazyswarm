@@ -45,9 +45,29 @@ def namedvec(name, fields, sizes):
 
 State = namedvec("State", "ierr p v R w", "3 3 3 9 3")
 Action = namedvec("Action", "thrust torque", "1 3")
-Target = namedvec("Target", "p_d v_d a_d w_d", "3 3 3 3")
+Target = namedvec("Target", "p_d v_d a_d y_d w_d", "3 3 3 1 3")
 Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
+
+
+def normalize(v):
+    vn = np.linalg.norm(v)
+    dim = v.shape[-1]
+    J = (1.0 / vn) * np.eye(dim) - (1 / vn ** 3) * np.outer(v, v)
+    return v / vn, J
+
+
+def cross(a, b):
+    ax, ay, az = a
+    bx, by, bz = b
+    x = np.array([
+        ay * bz - az * by,
+        az * bx - ax * bz,
+        ax * by - ay * bx,
+    ])
+    Ja = -SO3.hat(b)
+    Jb = SO3.hat(a)
+    return x, Ja, Jb
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
@@ -84,18 +104,23 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     thrust = np.linalg.norm(a)
     Dthrust_a = (a / thrust).reshape((1, 3))
 
-    zgoal = a / thrust
-    Dzgoal_a = (1.0 / thrust) * np.eye(3) - (1 / thrust ** 3) * np.outer(a, a)
-    ygoal = np.array([0, 1, 0])
-    Dygoal_a = np.zeros((3, 3))
-    Dxgoal_zgoal = np.array([
-        [ 0, 0, 1],
-        [ 0, 0, 0],
-        [-1, 0, 0],
-    ])
-    xgoal = Dxgoal_zgoal @ zgoal
-    Dxgoal_a = Dxgoal_zgoal @ Dzgoal_a
+    zgoal, Dzgoal_a = normalize(a)
+    assert np.all(zgoal == a / thrust)
+    xgoalflat = np.array([np.cos(xd.y_d), np.sin(xd.y_d), 0])
+
+    ygoalnn, Dygoalnn_zgoal, _ = cross(zgoal, xgoalflat)
+    ygoal, Dygoal_ygoalnn = normalize(ygoalnn)
+    Dygoal_a = Dygoal_ygoalnn @ Dygoalnn_zgoal @ Dzgoal_a
+
+    xgoal, Dxgoal_ygoal, Dxgoal_zgoal = cross(ygoal, zgoal)
+    assert np.isclose(np.linalg.norm(xgoal), 1)
+    Dxgoal_a = Dxgoal_ygoal @ Dygoal_a + Dxgoal_zgoal @ Dzgoal_a
+
     Rd3 = np.stack([xgoal, ygoal, zgoal]).T
+    det = np.linalg.det(Rd3)
+    RTR = Rd3.T @ Rd3
+    assert np.isclose(det, 1)
+    assert np.allclose(RTR, np.eye(3))
     DRd3_a = np.block([
         [Dxgoal_a],
         [Dygoal_a],
@@ -108,8 +133,6 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Z93 = np.zeros((9, 3))
     DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
     er3, Der3_R3, Der3_Rd3 = SO3.error(R3, Rd3)
-    assert np.isclose(er3[0], 0, atol=1e-7)
-    assert np.isclose(er3[2], 0, atol=1e-7)
 
     #erold, *_ = angleto(zgoal, up)
     #assert np.sign(erold) == np.sign(er3[1])
@@ -123,8 +146,6 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
     ew = x.w - xd.w_d
     torque = -th.kr * er3 - th.kw * ew
-    assert np.isclose(torque[0], 0, atol=1e-7)
-    assert np.isclose(torque[2], 0, atol=1e-7)
     u = Action(thrust=thrust, torque=torque)
 
     # controller chain rules
@@ -292,27 +313,13 @@ def main():
     rng = np.random.default_rng(0)
     for i in range(100):
 
-        #x = State.from_arr(rng.normal(size=State.size))
-        # stay in the XZ plane
-        M = np.array([
-            [1, 0],
-            [0, 0],
-            [0, 1],
-        ])
-        ierr, p, v = rng.normal(size=(3, 2)) @ M.T
-        R2 = SO3.random(rng, 2)
-        R3 = np.array([
-            [R2[0, 0], 0, R2[0, 1]],
-            [0,        1,        0],
-            [R2[1, 0], 0, R2[1, 1]],
-        ])
-        R3 = R3.flatten()
-        w = np.array([0, rng.normal(), 0])
-        x = State(ierr=ierr, p=p, v=v, R=R3, w=w)
+        ierr, p, v, w = rng.normal(size=(4, 3))
+        R = SO3.random(rng, 3).flatten()
+        x = State(ierr=ierr, p=p, v=v, R=R, w=w)
 
-        pd, vd, ad = rng.normal(size=(3, 2)) @ M.T
-        wd = np.array([0, rng.normal(), 0])
-        xd = Target(p_d=pd, v_d=vd, a_d=ad, w_d=wd)
+        pd, vd, ad, wd = rng.normal(size=(4, 3))
+        yd = rng.normal()
+        xd = Target(p_d=pd, v_d=vd, a_d=ad, y_d=yd, w_d=wd)
 
         th = Param.from_arr(rng.uniform(0.1, 4, size=Param.size))
 

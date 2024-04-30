@@ -81,7 +81,7 @@ def Jlog_mine(q):
     return J
 
 
-def random(rng, dim):
+def random(rng, dim=3):
     G = rng.normal(size=(dim, dim))
     U, _, VT = np.linalg.svd(G)
     return U @ VT
