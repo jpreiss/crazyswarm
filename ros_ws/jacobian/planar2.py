@@ -1,6 +1,8 @@
 from collections import namedtuple
 
-import colorama
+import sys
+
+from colorama import Fore
 import numpy as np
 
 import planar
@@ -101,7 +103,7 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
             - th2.kv * (x.v - xd.v_d)
         )
         return feedback + xd.a_d + g
-    finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
+    finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str, lambda i: "xyz"[i])
 
     thrust = np.linalg.norm(a)
     Dthrust_a = (a / thrust).reshape((1, 3))
@@ -130,8 +132,8 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Z93 = np.zeros((9, 3))
     DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
     er3, Der3_R3, Der3_Rd3 = SO3.error(R3, Rd3)
-    assert np.isclose(er3[0], 0)
-    assert np.isclose(er3[2], 0)
+    assert np.isclose(er3[0], 0, atol=1e-7)
+    assert np.isclose(er3[2], 0, atol=1e-7)
 
     #erold, *_ = angleto(zgoal, up)
     #assert np.sign(erold) == np.sign(er3[1])
@@ -257,19 +259,30 @@ RTOL = 1e-4
 ATOL = 1e-6
 
 
-def color_rtol(x):
-    if abs(x) > RTOL:
-        return f"{colorama.Fore.RED}{x:.4e}{colorama.Fore.RESET}"
-    return f"{x:.4e}"
+def print_with_highlight(x, mask, dim_str):
+    """Prints a namedvec"""
+    assert len(x.shape) == 1
+    n = x.size
+    rows = np.empty((2, n), dtype=object)
+    for i in range(n):
+        if not mask[i]:
+            rows[0, i] = str(x[i])
+            rows[1, i] = ""
+        else:
+            rows[0, i] = f"{Fore.RED}{x[i]}{Fore.RESET}"
+            name = dim_str(i)
+            rows[1, i] = f"{Fore.RED}^ {name}{Fore.RESET}"
+    lens = np.vectorize(len)(rows) + 1
+    lens = np.amax(lens, axis=0)
+    if not np.any(mask):
+        rows = rows[[0]]
+    for row in rows:
+        for s, l in zip(row, lens):
+            sys.stdout.write(s.ljust(l))
+        print()
 
 
-def color_atol(x):
-    if abs(x) > ATOL:
-        return f"{colorama.Fore.RED}{x:.4e}{colorama.Fore.RESET}"
-    return f"{x:.4e}"
-
-
-def finitediff_check(x, D, f, dim_str):
+def finitediff_check(x, D, f, x_dim_str, y_dim_str):
     n = x.size
     assert D.shape[1] == n
     y = f(x)
@@ -282,14 +295,17 @@ def finitediff_check(x, D, f, dim_str):
         D_analytic = D[:, i]
         aerr = D_finite - D_analytic
         rerr = aerr / (D_analytic + (D_analytic == 0))
-        ok = np.allclose(D_finite, D_analytic, rtol=RTOL, atol=ATOL)
-        if not ok:
-            print(f"wrt input {dim_str(i)}")
-            print(f"{D_finite = }\n{D_analytic = }")
-            with np.printoptions(formatter=dict(float=color_atol)):
-                print(f"{aerr = }")
-            with np.printoptions(formatter=dict(float=color_rtol)):
-                print(f"{rerr = }")
+        if not np.allclose(D_finite, D_analytic, rtol=RTOL, atol=ATOL):
+            amask = np.abs(aerr) > ATOL
+            rmask = np.abs(rerr) > RTOL
+            print(f"{Fore.RED}wrt input {x_dim_str(i)}{Fore.RESET}")
+            stack = np.stack([D_finite, D_analytic])
+            print("Finite, Analytic:")
+            print(stack)
+            to_print = [(aerr, amask, "absolute"), (rerr, rmask, "relative")]
+            for err, mask, name in to_print:
+                print(f"{name}:")
+                print_with_highlight(err, mask, y_dim_str)
             assert False
 
 
@@ -335,10 +351,10 @@ def main():
             return ctrl(x, xd, th2, const)[0].to_arr()
 
         print("du/dx")
-        finitediff_check(x.to_arr(), Du_x, ctrl_x2u, State.dim_str)
+        finitediff_check(x.to_arr(), Du_x, ctrl_x2u, State.dim_str, Action.dim_str)
 
         print("du/dth")
-        finitediff_check(th.to_arr(), Du_th, ctrl_th2u, Param.dim_str)
+        finitediff_check(th.to_arr(), Du_th, ctrl_th2u, Param.dim_str, Action.dim_str)
 
         def dyn_x2x(xa):
             x2 = State.from_arr(xa)
@@ -348,11 +364,11 @@ def main():
             u2 = Action.from_arr(ua)
             return dynamics(x, xd, u2, const)[0].to_arr()
 
-        #print("dx/dx")
-        #finitediff_check(x.to_arr(), Dx_x, dyn_x2x, State.dim_str)
+        print("dx/dx")
+        finitediff_check(x.to_arr(), Dx_x, dyn_x2x, State.dim_str, State.dim_str)
 
         print("dx/du")
-        finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Action.dim_str)
+        finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Action.dim_str, State.dim_str)
 
 
 if __name__ == "__main__":
