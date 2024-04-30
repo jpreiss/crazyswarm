@@ -5,6 +5,31 @@ import numpy as np
 
 import planar
 from planar import angleto
+from SO3 import error
+
+
+def up_to_R3(up):
+    """Converts an 'up' vector to a 3d rotation matrix, plus jacobian."""
+    R = np.array([
+        [ up[1], 0, up[0]],
+        [    0,  1,     0],
+        [-up[0], 0, up[1]],
+    ])
+    J = np.array([
+        [ 0, 1],
+        [ 0, 0],
+        [-1, 0],
+        [ 0, 0],
+        [ 0, 0],
+        [ 0, 0],
+        [ 1, 0],
+        [ 0, 0],
+        [ 0, 1],
+    ])
+    JR = (J @ up).reshape((3, 3)).T
+    JR[1, 1] = 1
+    assert np.all(R.flat == JR.flat)
+    return R, J
 
 
 def namedvec(name, fields, sizes):
@@ -33,38 +58,189 @@ def namedvec(name, fields, sizes):
         inner_idx = dim - splits[idx] + sizes[idx]
         return f"{fields[idx]}[{inner_idx}]"
 
-    sz = np.sum(sizes)
-    @classmethod
-    @property
-    def size(cls):
-        return sz
-
     return type(
         name,
         (base,),
-        dict(to_arr=to_arr, from_arr=from_arr, dim_str=dim_str, size=size),
+        dict(size=np.sum(sizes), to_arr=to_arr, from_arr=from_arr, dim_str=dim_str),
     )
 
 
-State = namedvec("State", "ierr p v r w", "2 2 2 1 1")
-Action = namedvec("Action", "thrust torque", "1 1")
-Target = namedvec("Target", "p_d v_d a_d w_d", "2 2 2 1")
+State = namedvec("State", "ierr p v R w", "3 3 3 9 3")
+Action = namedvec("Action", "thrust torque", "1 3")
+Target = namedvec("Target", "p_d v_d a_d w_d", "3 3 3 3")
 Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
-    args = [*x] + [*xd] + [*th]
-    vals, Du_x, Du_th = planar.ctrl(*args)
-    u = Action(*vals)
+    """Returns: u, Du_x, Du_th."""
+    g = np.array([0, 0, c.g])
+
+    # CONTROLLER
+
+    # ----------
+    # position part components
+    perr = x.p - xd.p_d
+    verr = x.v - xd.v_d
+    feedback = - th.ki * x.ierr - th.kp * perr - th.kv * verr
+    a = feedback + xd.a_d + g
+    I = np.eye(3)
+    Da_x = np.block([
+        [-th.ki * I, -th.kp * I, -th.kv * I, 0 * I]
+    ])
+    Da_th = np.block([
+        [-x.ierr[:, None], -perr[:, None], -verr[:, None], 0 * I]
+    ])
+
+    # double-check the derivatives
+    def a_fn(th2):
+        th2 = Param.from_arr(th2)
+        feedback = (
+            - th2.ki * x.ierr
+            - th2.kp * (x.p - xd.p_d)
+            - th2.kv * (x.v - xd.v_d)
+        )
+        return feedback + xd.a_d + g
+    finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
+
+    thrust = np.linalg.norm(a)
+    Dthrust_a = (a / thrust).reshape((1, 2))
+
+    zgoal = a / thrust
+    Dzgoal_a = (1.0 / thrust) * np.eye(3) - (1 / thrust ** 3) * np.outer(a, a)
+    ygoal = np.array([0, 1, 0])
+    Dygoal_a = np.zeros(3)
+    Dxgoal_zgoal = np.array([
+        [ 0, 0, 1],
+        [ 0, 0, 0],
+        [-1, 0, 0],
+    ])
+    xgoal = Dxgoal_zgoal @ zgoal
+    Dxgoal_a = Dxgoal_zgoal @ Dzgoal_a
+    Rd3 = np.stack([xgoal, ygoal, zgoal]).T
+    DRd3_a = np.block([
+        [Dxgoal_a],
+        [Dygoal_a],
+        [Dzgoal_a],
+    ], axis=0)
+
+    # attitude part components
+    R3 = x.R.reshape((3, 3)).T
+    Z93 = np.zeros((9, 3))
+    DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
+    er3, Der3_R3, Der3_Rd3 = error(R3, Rd3)
+    assert np.isclose(er3[0], 0)
+    assert np.isclose(er3[2], 0)
+
+    erold, *_ = angleto(upgoal, up)
+    assert np.sign(erold) == np.sign(er3[1])
+
+    # double-check the derivatives
+    # def angleto_lambda(xflat):
+    #     a, b = xflat.reshape((2, 2))
+    #     return angleto(a, b)[0]
+    # D = np.concatenate([Der_upgoal, Der_up])[None, :]
+    # finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
+
+    ew = x.w - xd.w_d
+    torque = -th.kr * er3 - th.kw * ew
+    u = Action(thrust=thrust, torque=torque)
+
+    # controller chain rules
+    Dthrust_x = Dthrust_a @ Da_x
+    Dthrust_th = Dthrust_a @ Da_th
+
+    #Der_x = Der_up @ Dup_x + Der_upgoal @ Dupgoal_a @ Da_x
+    Der3_x = Der3_R3 @ DR3_x + Der3_Rd3 @ DRd3_a @ Da_x
+
+    #Der_th = Der_upgoal @ Dupgoal_a @ Da_th
+    Der3_th = Der3_Rd3 @ DRd3_a @ Da_th
+
+    Dtorque_xw = np.zeros((3, State.size))
+    Dtorque_xw[:, -3:] = -th.kw * np.eye(3)
+    Dtorque_x = -th.kr * Der3_x + Dtorque_xw
+
+    #Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
+    Z31 = np.zeros((3, 1))
+    Dtorque_th = -th.kr * Der3_th + np.block([[Z31, Z31, Z31, -er3, -ew]])
+
+    Du_x = np.block([
+        [Dthrust_x],
+        [Dtorque_x],
+    ])
+    Du_th = np.block([
+        [Dthrust_th],
+        [Dtorque_th],
+    ])
     return u, Du_x, Du_th
 
 
 def dynamics(x: State, xd: Target, u: Action, c: Const):
-    args = [*x] + [*xd] + [*u] + [c.dt,]
-    vals, Dx_x, Dx_u = planar.dynamics(*args)
-    xt = State(*vals)
-    return xt, Dx_x, Dx_u
+    # DYNAMICS
+    # --------
+
+    R = x.R.reshape((3, 3)).T
+    up = R[:, 2]
+    Z33 = np.zeros((3, 3))
+    Dup_x = np.block([[Z33, Z33, Z33, Z33, Z33, np.eye(3), Z33]])
+    g = np.array([0, 0, c.g])
+
+    # Normally I would use symplectic Euler integration, but plain forward
+    # Euler gives simpler Jacobians.
+
+    acc = u.thrust * up - g
+    Dacc_x = u.thrust * Dup_x
+    x_t = State(
+        ierr = x.ierr + c.dt * (x.p - xd.p_d),
+        p = x.p + c.dt * x.v,
+        v = x.v + c.dt * acc,
+        #r = x.r + c.dt * x.w,
+        # TODO: R
+        w = x.w + c.dt * u.torque,
+    )
+    # TODO: This became trivial after we went from angle state to rotation
+    # matrix -- condense some ops.
+    Dvt_R = c.dt * Dacc_x[:, 9:-3]
+    assert Dvt_R.shape == (3, 9)
+
+    I3 = np.eye(3)
+    I9 = np.eye(9)
+    Z31 = np.zeros((3, 1))
+    Z33 = np.zeros((3, 3))
+    Z39 = np.zeros((3, 9))
+    Z93 = Z39.T
+
+    Rx, Ry, Rz = R.T
+    DR_w = c.dt * np.block([
+        [Z31, -Rz,  Ry],
+        [ Rz, Z31, -Rx],
+        [-Ry,  Rx, Z32],
+    ])
+    assert DR_w.shape == (9, 3)
+
+    dt3 = c.dt * I3
+    Dx_x = np.block([
+        [ I3, dt3, Z33,   Z39,  Z21],
+        [Z33,  I3, dt3,   Z39,  Z21],
+        [Z33, Z33,  I3, Dvt_R,  Z21],
+        [Z93, Z93, Z93,    I9, DR_w],
+        [Z33, Z33, Z33,   Z39,   I3],
+    ])
+    # (Refers to Dx_x construction above.) Skipping Coriolis term that would
+    # make dw'/dw nonzero because it requires system ID of the inertia matrix,
+    # which we can otherwise skip. For the Crazyflie this term can be neglected
+    # as the quad's inertia is very small.
+
+    Z91 = np.zeros((9, 1))
+    Dx_u = np.block([
+        [           Z31, Z33],
+        [           Z31, Z33],
+        [c.dt * R[:, 2], Z33],
+        [           Z91, Z93],
+        [           Z31, dt3],
+    ])
+
+    return x_t, Dx_x, Dx_u
 
 
 # TODO: costs?
