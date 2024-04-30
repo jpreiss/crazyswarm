@@ -1,5 +1,6 @@
 from sympy import *
 import numpy as np
+import scipy as sp
 
 
 def error(R, Rd):
@@ -33,7 +34,29 @@ def error(R, Rd):
     return -err, -JR, -JRd
 
 
-def SO3exp(v):
+def hat(w):
+    x, y, z = w
+    return np.array([
+        [ 0, -z,  y],
+        [ z,  0, -x],
+        [-y,  x,  0],
+    ])
+
+
+def vee(skew):
+    return np.array([skew[2, 1], skew[0, 2], skew[1, 0]])
+
+
+def exp(skew):
+    return sp.linalg.expm(skew)
+
+
+def project(X):
+    U, _, VT = np.linalg.svd(X)
+    return U @ VT
+
+
+def SO3exp_jac(v):
     vn = np.sqrt(np.sum(v ** 2))
     vn1 = 1.0 / vn
     vn2 = vn1 * vn1
@@ -57,6 +80,11 @@ def Jlog_mine(q):
     J = vn2 * np.hstack([-v[:, None], rest])
     return J
 
+
+def random(rng, dim):
+    G = rng.normal(size=(dim, dim))
+    U, _, VT = np.linalg.svd(G)
+    return U @ VT
 
 
 def evalf(x):

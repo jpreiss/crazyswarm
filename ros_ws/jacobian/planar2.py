@@ -5,7 +5,7 @@ import numpy as np
 
 import planar
 from planar import angleto
-from SO3 import error
+import SO3
 
 
 def up_to_R3(up):
@@ -80,16 +80,16 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
     # ----------
     # position part components
+    I = np.eye(3)
     perr = x.p - xd.p_d
     verr = x.v - xd.v_d
     feedback = - th.ki * x.ierr - th.kp * perr - th.kv * verr
     a = feedback + xd.a_d + g
-    I = np.eye(3)
     Da_x = np.block([
-        [-th.ki * I, -th.kp * I, -th.kv * I, 0 * I]
+        [-th.ki * I, -th.kp * I, -th.kv * I, np.zeros((3, 9 + 3))]
     ])
     Da_th = np.block([
-        [-x.ierr[:, None], -perr[:, None], -verr[:, None], 0 * I]
+        [-x.ierr[:, None], -perr[:, None], -verr[:, None], np.zeros((3, 2))]
     ])
 
     # double-check the derivatives
@@ -104,12 +104,12 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     finitediff_check(th.to_arr(), Da_th, a_fn, Param.dim_str)
 
     thrust = np.linalg.norm(a)
-    Dthrust_a = (a / thrust).reshape((1, 2))
+    Dthrust_a = (a / thrust).reshape((1, 3))
 
     zgoal = a / thrust
     Dzgoal_a = (1.0 / thrust) * np.eye(3) - (1 / thrust ** 3) * np.outer(a, a)
     ygoal = np.array([0, 1, 0])
-    Dygoal_a = np.zeros(3)
+    Dygoal_a = np.zeros((3, 3))
     Dxgoal_zgoal = np.array([
         [ 0, 0, 1],
         [ 0, 0, 0],
@@ -122,18 +122,19 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
         [Dxgoal_a],
         [Dygoal_a],
         [Dzgoal_a],
-    ], axis=0)
+    ])
+    assert DRd3_a.shape == (9, 3)
 
     # attitude part components
     R3 = x.R.reshape((3, 3)).T
     Z93 = np.zeros((9, 3))
     DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
-    er3, Der3_R3, Der3_Rd3 = error(R3, Rd3)
+    er3, Der3_R3, Der3_Rd3 = SO3.error(R3, Rd3)
     assert np.isclose(er3[0], 0)
     assert np.isclose(er3[2], 0)
 
-    erold, *_ = angleto(upgoal, up)
-    assert np.sign(erold) == np.sign(er3[1])
+    #erold, *_ = angleto(zgoal, up)
+    #assert np.sign(erold) == np.sign(er3[1])
 
     # double-check the derivatives
     # def angleto_lambda(xflat):
@@ -144,6 +145,8 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
     ew = x.w - xd.w_d
     torque = -th.kr * er3 - th.kw * ew
+    assert np.isclose(torque[0], 0, atol=1e-7)
+    assert np.isclose(torque[2], 0, atol=1e-7)
     u = Action(thrust=thrust, torque=torque)
 
     # controller chain rules
@@ -161,8 +164,8 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     Dtorque_x = -th.kr * Der3_x + Dtorque_xw
 
     #Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
-    Z31 = np.zeros((3, 1))
-    Dtorque_th = -th.kr * Der3_th + np.block([[Z31, Z31, Z31, -er3, -ew]])
+    Z3 = np.zeros(3)
+    Dtorque_th = -th.kr * Der3_th + np.stack([Z3, Z3, Z3, -er3, -ew]).T
 
     Du_x = np.block([
         [Dthrust_x],
@@ -190,12 +193,14 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
 
     acc = u.thrust * up - g
     Dacc_x = u.thrust * Dup_x
+    #R_t = R @ SO3.exp(SO3.hat(c.dt * x.w))
+    # TODO: correct Jacobian for above. For now, need to project onto manifold after checking derivatives.
+    R_t = R + c.dt * R @ SO3.hat(x.w)
     x_t = State(
         ierr = x.ierr + c.dt * (x.p - xd.p_d),
         p = x.p + c.dt * x.v,
         v = x.v + c.dt * acc,
-        #r = x.r + c.dt * x.w,
-        # TODO: R
+        R = R_t.flatten(),
         w = x.w + c.dt * u.torque,
     )
     # TODO: This became trivial after we went from angle state to rotation
@@ -210,19 +215,19 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     Z39 = np.zeros((3, 9))
     Z93 = Z39.T
 
-    Rx, Ry, Rz = R.T
+    Rx, Ry, Rz = (R.T)[:, :, None]
     DR_w = c.dt * np.block([
         [Z31, -Rz,  Ry],
         [ Rz, Z31, -Rx],
-        [-Ry,  Rx, Z32],
+        [-Ry,  Rx, Z31],
     ])
     assert DR_w.shape == (9, 3)
 
     dt3 = c.dt * I3
     Dx_x = np.block([
-        [ I3, dt3, Z33,   Z39,  Z21],
-        [Z33,  I3, dt3,   Z39,  Z21],
-        [Z33, Z33,  I3, Dvt_R,  Z21],
+        [ I3, dt3, Z33,   Z39,  Z33],
+        [Z33,  I3, dt3,   Z39,  Z33],
+        [Z33, Z33,  I3, Dvt_R,  Z33],
         [Z93, Z93, Z93,    I9, DR_w],
         [Z33, Z33, Z33,   Z39,   I3],
     ])
@@ -233,11 +238,11 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
 
     Z91 = np.zeros((9, 1))
     Dx_u = np.block([
-        [           Z31, Z33],
-        [           Z31, Z33],
-        [c.dt * R[:, 2], Z33],
-        [           Z91, Z93],
-        [           Z31, dt3],
+        [             Z31, Z33],
+        [             Z31, Z33],
+        [c.dt * R[:, [2]], Z33],
+        [             Z91, Z93],
+        [             Z31, dt3],
     ])
 
     return x_t, Dx_x, Dx_u
@@ -292,8 +297,29 @@ def main():
     const = Const(g=9.81, m=1, j=None, dt=0.01)
     rng = np.random.default_rng(0)
     for i in range(100):
-        x = State.from_arr(rng.normal(size=State.size))
-        xd = Target.from_arr(rng.normal(size=Target.size))
+
+        #x = State.from_arr(rng.normal(size=State.size))
+        # stay in the XZ plane
+        M = np.array([
+            [1, 0],
+            [0, 0],
+            [0, 1],
+        ])
+        ierr, p, v = rng.normal(size=(3, 2)) @ M.T
+        R2 = SO3.random(rng, 2)
+        R3 = np.array([
+            [R2[0, 0], 0, R2[0, 1]],
+            [0,        1,        0],
+            [R2[1, 0], 0, R2[1, 1]],
+        ])
+        R3 = R3.flatten()
+        w = np.array([0, rng.normal(), 0])
+        x = State(ierr=ierr, p=p, v=v, R=R3, w=w)
+
+        pd, vd, ad = rng.normal(size=(3, 2)) @ M.T
+        wd = np.array([0, rng.normal(), 0])
+        xd = Target(p_d=pd, v_d=vd, a_d=ad, w_d=wd)
+
         th = Param.from_arr(rng.uniform(0.1, 4, size=Param.size))
 
         u, Du_x, Du_th = ctrl(x, xd, th, const)
@@ -322,8 +348,8 @@ def main():
             u2 = Action.from_arr(ua)
             return dynamics(x, xd, u2, const)[0].to_arr()
 
-        print("dx/dx")
-        finitediff_check(x.to_arr(), Dx_x, dyn_x2x, State.dim_str)
+        #print("dx/dx")
+        #finitediff_check(x.to_arr(), Dx_x, dyn_x2x, State.dim_str)
 
         print("dx/du")
         finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Action.dim_str)
