@@ -10,30 +10,6 @@ from planar import angleto
 import SO3
 
 
-def up_to_R3(up):
-    """Converts an 'up' vector to a 3d rotation matrix, plus jacobian."""
-    R = np.array([
-        [ up[1], 0, up[0]],
-        [    0,  1,     0],
-        [-up[0], 0, up[1]],
-    ])
-    J = np.array([
-        [ 0, 1],
-        [ 0, 0],
-        [-1, 0],
-        [ 0, 0],
-        [ 0, 0],
-        [ 0, 0],
-        [ 1, 0],
-        [ 0, 0],
-        [ 0, 1],
-    ])
-    JR = (J @ up).reshape((3, 3)).T
-    JR[1, 1] = 1
-    assert np.all(R.flat == JR.flat)
-    return R, J
-
-
 def namedvec(name, fields, sizes):
     """Namedtuple plus helpers for going to/from concatenated arrays."""
     fields = fields.split(" ")
