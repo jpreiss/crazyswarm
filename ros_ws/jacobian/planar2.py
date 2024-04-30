@@ -193,7 +193,10 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     acc = u.thrust * up - g
     Dacc_x = u.thrust * Dup_x
     #R_t = R @ SO3.exp(SO3.hat(c.dt * x.w))
-    # TODO: correct Jacobian for above. For now, need to project onto manifold after checking derivatives.
+    # TODO: correct Jacobian for above. For now, using forward Euler, if we
+    # want to actually integrate the dynamics we must project R_t onto SO(3)
+    # *after* checking derivatives. But I believe it may be too computationally
+    # expensive to run on the Crazyflie anyway.
     R_t = R + c.dt * R @ SO3.hat(x.w)
     x_t = State(
         ierr = x.ierr + c.dt * (x.p - xd.p_d),
