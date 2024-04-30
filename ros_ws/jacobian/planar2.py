@@ -217,23 +217,23 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     Z39 = np.zeros((3, 9))
     Z93 = Z39.T
 
-    DR_R = np.eye(9) + c.dt * np.kron(SO3.hat(-x.w), I3)
+    DRt_R = np.eye(9) + c.dt * np.kron(SO3.hat(-x.w), I3)
 
     Rx, Ry, Rz = (R.T)[:, :, None]
-    DR_w = c.dt * np.block([
+    DRt_w = c.dt * np.block([
         [Z31, -Rz,  Ry],
         [ Rz, Z31, -Rx],
         [-Ry,  Rx, Z31],
     ])
-    assert DR_w.shape == (9, 3)
+    assert DRt_w.shape == (9, 3)
 
     dt3 = c.dt * I3
     Dx_x = np.block([
-        [ I3, dt3, Z33,   Z39,  Z33],
-        [Z33,  I3, dt3,   Z39,  Z33],
-        [Z33, Z33,  I3, Dvt_R,  Z33],
-        [Z93, Z93, Z93,  DR_R, DR_w],
-        [Z33, Z33, Z33,   Z39,   I3],
+        [ I3, dt3, Z33,   Z39,   Z33],
+        [Z33,  I3, dt3,   Z39,   Z33],
+        [Z33, Z33,  I3, Dvt_R,   Z33],
+        [Z93, Z93, Z93, DRt_R, DRt_w],
+        [Z33, Z33, Z33,   Z39,    I3],
     ])
     # (Refers to Dx_x construction above.) Skipping Coriolis term that would
     # make dw'/dw nonzero because it requires system ID of the inertia matrix,
