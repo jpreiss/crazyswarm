@@ -60,35 +60,20 @@ def namedvec(name, fields, sizes):
     return type(
         name,
         (base,),
-        dict(to_arr=to_arr, from_arr=from_arr, dim_str=dim_str),
+        dict(size=np.sum(sizes), to_arr=to_arr, from_arr=from_arr, dim_str=dim_str),
     )
 
 
-State = namedvec("State", "ierr p v r w", "2 2 2 1 1")
-Action = namedvec("Action", "thrust torque", "1 1")
-Target = namedvec("Target", "p_d v_d a_d w_d", "2 2 2 1")
+State = namedvec("State", "ierr p v R w", "3 3 3 9 3")
+Action = namedvec("Action", "thrust torque", "1 3")
+Target = namedvec("Target", "p_d v_d a_d w_d", "3 3 3 3")
 Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 
 def ctrl(x: State, xd: Target, th: Param, c: Const):
     """Returns: u, Du_x, Du_th."""
-    # derived state
-    up = np.array([-np.sin(x.r), np.cos(x.r)])
-    Dup_x = np.array([
-        [0, 0, 0, 0, 0, 0, -np.cos(x.r), 0],
-        [0, 0, 0, 0, 0, 0, -np.sin(x.r), 0],
-    ])
-    assert Dup_x.shape[1] == len(x.to_arr())
-    g = np.array([0, c.g])
-
-    # double-check the derivatives
-    def up_fn(x):
-        r = x[-2]
-        return np.array([-np.sin(r), np.cos(r)])
-    xa = x.to_arr()
-    finitediff_check(xa, Dup_x, up_fn, lambda i: "TODO")
-
+    g = np.array([0, 0, c.g])
 
     # CONTROLLER
 
@@ -98,7 +83,7 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     verr = x.v - xd.v_d
     feedback = - th.ki * x.ierr - th.kp * perr - th.kv * verr
     a = feedback + xd.a_d + g
-    I = np.eye(2)
+    I = np.eye(3)
     Da_x = np.block([
         [-th.ki * I, -th.kp * I, -th.kv * I, 0 * I]
     ])
@@ -120,22 +105,34 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     thrust = np.linalg.norm(a)
     Dthrust_a = (a / thrust).reshape((1, 2))
 
-    upgoal = a / thrust
-    Dupgoal_a = (1.0 / thrust) * np.eye(2) - (1 / thrust ** 3) * np.outer(a, a)
+    zgoal = a / thrust
+    Dzgoal_a = (1.0 / thrust) * np.eye(3) - (1 / thrust ** 3) * np.outer(a, a)
+    ygoal = np.array([0, 1, 0])
+    Dygoal_a = np.zeros(3)
+    Dxgoal_zgoal = np.array([
+        [ 0, 0, 1],
+        [ 0, 0, 0],
+        [-1, 0, 0],
+    ])
+    xgoal = Dxgoal_zgoal @ zgoal
+    Dxgoal_a = Dxgoal_zgoal @ Dzgoal_a
+    Rd3 = np.stack([xgoal, ygoal, zgoal]).T
+    DRd3_a = np.block([
+        [Dxgoal_a],
+        [Dygoal_a],
+        [Dzgoal_a],
+    ], axis=0)
 
     # attitude part components
-    Rd3, DRd3_upgoal = up_to_R3(upgoal)
-    R3, DR3_up = up_to_R3(up)
+    R3 = x.R.reshape((3, 3)).T
+    Z93 = np.zeros((9, 3))
+    DR3_x = np.block([Z93, Z93, Z93, np.eye(9), Z93])
     er3, Der3_R3, Der3_Rd3 = error(R3, Rd3)
     assert np.isclose(er3[0], 0)
     assert np.isclose(er3[2], 0)
-    er = -er3[1]
-    Der_up = -(Der3_R3 @ DR3_up)[[1], :]
-    Der_upgoal = -(Der3_Rd3 @ DRd3_upgoal)[[1], :]
-
 
     erold, *_ = angleto(upgoal, up)
-    assert np.sign(erold) == np.sign(er)
+    assert np.sign(erold) == np.sign(er3[1])
 
     # double-check the derivatives
     # def angleto_lambda(xflat):
@@ -145,20 +142,27 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
     # finitediff_check(np.concatenate([upgoal, up]), D, angleto_lambda, lambda i: "vecs")
 
     ew = x.w - xd.w_d
-    torque = -th.kr * er - th.kw * ew
+    torque = -th.kr * er3 - th.kw * ew
     u = Action(thrust=thrust, torque=torque)
 
     # controller chain rules
     Dthrust_x = Dthrust_a @ Da_x
     Dthrust_th = Dthrust_a @ Da_th
 
-    Der_x = Der_up @ Dup_x + Der_upgoal @ Dupgoal_a @ Da_x
-    Der_th = Der_upgoal @ Dupgoal_a @ Da_th
-    Dtorque_xw = np.array([
-        [0, 0, 0, 0, 0, 0, 0, -th.kw],
-    ])
-    Dtorque_x = -th.kr * Der_x + Dtorque_xw
-    Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
+    #Der_x = Der_up @ Dup_x + Der_upgoal @ Dupgoal_a @ Da_x
+    Der3_x = Der3_R3 @ DR3_x + Der3_Rd3 @ DRd3_a @ Da_x
+
+    #Der_th = Der_upgoal @ Dupgoal_a @ Da_th
+    Der3_th = Der3_Rd3 @ DRd3_a @ Da_th
+
+    Dtorque_xw = np.zeros((3, State.size))
+    Dtorque_xw[:, -3:] = -th.kw * np.eye(3)
+    Dtorque_x = -th.kr * Der3_x + Dtorque_xw
+
+    #Dtorque_th = -th.kr * Der_th + np.array([[0, 0, 0, -er, -ew]])
+    Z31 = np.zeros((3, 1))
+    Dtorque_th = -th.kr * Der3_th + np.block([[Z31, Z31, Z31, -er3, -ew]])
+
     Du_x = np.block([
         [Dthrust_x],
         [Dtorque_x],
@@ -174,13 +178,11 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
     # DYNAMICS
     # --------
 
-    # derived state - TODO factor out?
-    up = np.array([-np.sin(x.r), np.cos(x.r)])
-    Dup_x = np.array([
-        [0, 0, 0, 0, 0, 0, -np.cos(x.r), 0],
-        [0, 0, 0, 0, 0, 0, -np.sin(x.r), 0],
-    ])
-    g = np.array([0, c.g])
+    R = x.R.reshape((3, 3)).T
+    up = R[:, 2]
+    Z33 = np.zeros((3, 3))
+    Dup_x = np.block([[Z33, Z33, Z33, Z33, Z33, np.eye(3), Z33]])
+    g = np.array([0, 0, c.g])
 
     # Normally I would use symplectic Euler integration, but plain forward
     # Euler gives simpler Jacobians.
@@ -191,34 +193,50 @@ def dynamics(x: State, xd: Target, u: Action, c: Const):
         ierr = x.ierr + c.dt * (x.p - xd.p_d),
         p = x.p + c.dt * x.v,
         v = x.v + c.dt * acc,
-        r = x.r + c.dt * x.w,
+        #r = x.r + c.dt * x.w,
+        # TODO: R
         w = x.w + c.dt * u.torque,
     )
-    Dvt_r = c.dt * Dacc_x[:, [-2]]
-    I2 = np.eye(2)
-    I1 = np.eye(1)
-    Z22 = np.zeros((2, 2))
-    Z21 = np.zeros((2, 1))
-    Z12 = np.zeros((1, 2))
-    Z11 = np.zeros((1, 1))
-    dt2 = c.dt * I2
-    dt1 = c.dt * I1
-    Dx_x = np.block([
-        [ I2, dt2, Z22,   Z21, Z21],
-        [Z22,  I2, dt2,   Z21, Z21],
-        [Z22, Z22,  I2, Dvt_r, Z21],
-        [Z12, Z12, Z12,    I1, dt1],
-        [Z12, Z12, Z12,   Z11,  I1],
+    # TODO: This became trivial after we went from angle state to rotation
+    # matrix -- condense some ops.
+    Dvt_R = c.dt * Dacc_x[:, 9:-3]
+    assert Dvt_R.shape == (3, 9)
+
+    I3 = np.eye(3)
+    I9 = np.eye(9)
+    Z31 = np.zeros((3, 1))
+    Z33 = np.zeros((3, 3))
+    Z39 = np.zeros((3, 9))
+    Z93 = Z39.T
+
+    Rx, Ry, Rz = R.T
+    DR_w = c.dt * np.block([
+        [Z31, -Rz,  Ry],
+        [ Rz, Z31, -Rx],
+        [-Ry,  Rx, Z32],
     ])
+    assert DR_w.shape == (9, 3)
+
+    dt3 = c.dt * I3
+    Dx_x = np.block([
+        [ I3, dt3, Z33,   Z39,  Z21],
+        [Z33,  I3, dt3,   Z39,  Z21],
+        [Z33, Z33,  I3, Dvt_R,  Z21],
+        [Z93, Z93, Z93,    I9, DR_w],
+        [Z33, Z33, Z33,   Z39,   I3],
+    ])
+    # (Refers to Dx_x construction above.) Skipping Coriolis term that would
+    # make dw'/dw nonzero because it requires system ID of the inertia matrix,
+    # which we can otherwise skip. For the Crazyflie this term can be neglected
+    # as the quad's inertia is very small.
+
+    Z91 = np.zeros((9, 1))
     Dx_u = np.block([
-        [           0,    0],
-        [           0,    0],
-        [           0,    0],
-        [           0,    0],
-        [c.dt * up[0],    0],
-        [c.dt * up[1],    0],
-        [           0,    0],
-        [           0, c.dt],
+        [           Z31, Z33],
+        [           Z31, Z33],
+        [c.dt * R[:, 2], Z33],
+        [           Z91, Z93],
+        [           Z31, dt3],
     ])
 
     return x_t, Dx_x, Dx_u

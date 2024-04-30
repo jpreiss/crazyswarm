@@ -30,7 +30,7 @@ def error(R, Rd):
         [ Rz.T,     Z, -Rx.T],
         [-Ry.T,  Rx.T,     Z],
     ])
-    return err, JR, JRd
+    return -err, -JR, -JRd
 
 
 def SO3exp(v):
