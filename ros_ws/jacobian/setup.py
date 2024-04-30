@@ -10,7 +10,7 @@ ext_modules = [
         ["gapsquad/bindings.cpp"],
         depends=["gapsquad/gapsquad.hpp"],
         include_dirs=[eigenpip.get_include()],
-        cxx_std=17,
+        cxx_std=14,
         ),
 ]
 
