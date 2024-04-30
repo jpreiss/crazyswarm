@@ -24,11 +24,21 @@ using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 
 using State = std::tuple<Vec, Vec, Vec, Mat, Vec>;
 using Action = std::tuple<FLOAT, Vec>;
+using Target = std::tuple<Vec, Vec, Vec, FLOAT, Vec>;
 
 
 std::tuple<Vec, Vec, Vec> colsplit(Mat const &m)
 {
 	return std::make_tuple(m.col(0), m.col(1), m.col(2));
+}
+
+Mat fromcols(Vec const &a, Vec const &b, Vec const &c)
+{
+	Mat m;
+	m.col(0) = a;
+	m.col(1) = b;
+	m.col(2) = c;
+	return m;
 }
 
 
@@ -160,7 +170,7 @@ dynamics(
 
 	Mat93 DRt_w;
 	// shift operator constructor transposes everything by itself!
-	VecT Z31 = Vec::Zero();
+	// VecT Z31 = Vec::Zero();
 	// DRt_w <<
 		// Z31, -Rz,  Ry,
 		 // Rz, Z31, -Rx,
@@ -174,7 +184,7 @@ dynamics(
 	auto Z33 = Mat::Zero();
 	auto Z39 = Mat39::Zero();
 	auto Z93 = Mat93::Zero();
-	auto Z91 = Eigen::Matrix<FLOAT, 9, 1, Eigen::RowMajor>::Zero();
+	// auto Z91 = Eigen::Matrix<FLOAT, 9, 1, Eigen::RowMajor>::Zero();
 	auto dt3 = dt * I3;
 
 	Jxx Dx_x;
@@ -196,18 +206,15 @@ dynamics(
 	return std::make_tuple(x_t, Dx_x, Dx_u);
 }
 
-/*
 std::tuple<Action, Jux, Jut>
 ctrl(
-	Vec ierr, Vec p, Vec v, FLOAT r, FLOAT w, // state
-	Vec p_d, Vec v_d, Vec a_d, FLOAT w_d, // target
+	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
+	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
 	FLOAT ki, FLOAT kp, FLOAT kv, FLOAT kr, FLOAT kw // params
 	)
 {
-	// derived state
-	Vec up {-std::sin(r), std::cos(r)};
-	Vec Dup_r {-std::cos(r), -std::sin(r)};
-	Vec g {0, GRAV};
+	Vec g {0, 0, GRAV};
+	Mat I = Mat::Identity();
 
 	// position part components
 	Vec perr = p - p_d;
@@ -215,47 +222,81 @@ ctrl(
 	Vec feedback = - ki * ierr - kp * perr - kv * verr;
 	Vec a = feedback + a_d + g;
 
-	Mat I = Mat::Identity();
-	Eigen::Matrix<FLOAT, 2, XDIM> Da_x;
-	Da_x << -ki * I, -kp * I, -kv * I, Mat::Zero();
+	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Da_x;
+	Da_x << -ki * I, -kp * I, -kv * I, Eigen::Matrix<FLOAT, 3, 9 + 3, Eigen::RowMajor>::Zero();
 
-	Eigen::Matrix<FLOAT, 2, TDIM> Da_th;
-	Da_th << -ierr, -perr, -verr, Mat::Zero();
+	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Da_th;
+	Da_th << -ierr, -perr, -verr, Eigen::Matrix<FLOAT, 3, 2>::Zero();
 
 	FLOAT thrust = a.norm();
-	Vec Dthrust_a = a / thrust;
+	VecT Dthrust_a = (a / thrust).transpose();
 
-	Vec upgoal = a / thrust;
-	Mat aaT = a * a.transpose();
-	Mat Dupgoal_a = (1.0 / thrust) * Mat::Identity() - (1 / (thrust * thrust * thrust)) * aaT;
+	Vec zgoal;
+	Mat Dzgoal_a;
+	std::tie(zgoal, Dzgoal_a) = normalize(a);
 
-	// attitude part components
-	FLOAT er;
-	Eigen::Matrix<FLOAT, 1, 2> Der_upgoal;
-	Eigen::Matrix<FLOAT, 1, 2> Der_up;
-	std::tie(er, Der_upgoal, Der_up) = angleto(upgoal, up);
+	Vec xgoalflat { std::cos(y_d), std::sin(y_d), 0 };
+	Vec ygoalnn;
+	Mat Dygoalnn_zgoal, dummy;
+	std::tie(ygoalnn, Dygoalnn_zgoal, dummy) = cross(zgoal, xgoalflat);
+	Vec ygoal;
+	Mat Dygoal_ygoalnn;
+	std::tie(ygoal, Dygoal_ygoalnn) = normalize(ygoalnn);
+	Mat Dygoal_a = Dygoal_ygoalnn * Dygoalnn_zgoal * Dzgoal_a;
 
-	FLOAT ew = w - w_d;
-	FLOAT torque = -kr * er - kw * ew;
+	Vec xgoal;
+	Mat Dxgoal_ygoal, Dxgoal_zgoal;
+	std::tie(xgoal, Dxgoal_ygoal, Dxgoal_zgoal) = cross(ygoal, zgoal);
+	FLOAT norm = xgoal.norm();
+	if (std::abs(norm - 1) > 1e-7) {
+		throw std::runtime_error("xgoal norm too far from 1: is " + std::to_string(norm));
+	}
+	Mat Dxgoal_a = Dxgoal_ygoal * Dygoal_a + Dxgoal_zgoal + Dzgoal_a;
+
+	Mat Rd = fromcols(xgoal, ygoal, zgoal);
+	FLOAT det = Rd.determinant();
+	if (std::abs(det - 1) > 1e-7) {
+		throw std::runtime_error("Rd determinant too far from 1: is " + std::to_string(det));
+	}
+	Mat RdTRd = Rd.transpose() * Rd;
+	FLOAT maxerr = (RdTRd - I).array().abs().maxCoeff();
+	if (maxerr > 1e-7) {
+		throw std::runtime_error("Rd is not orthogonal: maxerr is " + std::to_string(maxerr));
+	}
+	Eigen::Matrix<FLOAT, 9, 3, Eigen::RowMajor> DRd_a;
+	DRd_a.block<3, 3>(0, 0) = Dxgoal_a;
+	DRd_a.block<3, 3>(3, 0) = Dygoal_a;
+	DRd_a.block<3, 3>(6, 0) = Dzgoal_a;
+
+	Eigen::Matrix<FLOAT, 9, XDIM, Eigen::RowMajor> DR_x;
+	DR_x.setZero();
+	DR_x.block<9, 9>(0, 9) = Mat99::Identity();
+	Vec er;
+	Mat39 Der_R, Der_Rd;
+	std::tie(er, Der_R, Der_Rd) = SO3error(R, Rd);
+
+	Vec ew = w - w_d;
+	Vec torque = -kr * er - kw * ew;
 	Action u {thrust, torque};
 
 	// controller chain rules
-	auto Dthrust_x = Dthrust_a.transpose() * Da_x;
-	auto Dthrust_th = Dthrust_a.transpose() * Da_th;
+	auto Dthrust_x = Dthrust_a * Da_x;
+	auto Dthrust_th = Dthrust_a * Da_th;
 
 	//auto Der_x = Der_up * Dup_x + Der_upgoal * Dupgoal_a * Da_x;
-	Eigen::Matrix<FLOAT, 1, XDIM> Der_x = Der_upgoal * Dupgoal_a * Da_x;
-	Der_x(0, 6) += Der_up.dot(Dup_r);
+	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Der_x = Der_R * DR_x + Der_Rd * DRd_a * Da_x;
 
-	auto Der_th = Der_upgoal * Dupgoal_a * Da_th;
+	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Der_th = Der_Rd * DRd_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 1, XDIM> Dtorque_xw;
-	Dtorque_xw << 0, 0, 0, 0, 0, 0, 0, -kw;
+	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dtorque_xw;
+	Dtorque_xw.setZero();
+	Dtorque_xw.block<3, 3>(0, 3 + 3 + 3 + 9) = -kw * I;
 
-	auto Dtorque_x = -kr * Der_x + Dtorque_xw;
-	Eigen::Matrix<FLOAT, 1, TDIM> Dtorque_th;
-	Dtorque_th << 0, 0, 0, -er, -ew;
-	Dtorque_th += -kr * Der_th;
+	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dtorque_x = -kr * Der_x + Dtorque_xw;
+
+	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Dtorque_th = -kr * Der_th;
+	Dtorque_th.block<3, 1>(0, 3) -= er;
+	Dtorque_th.block<3, 1>(0, 4) -= ew;
 
 	Jux Du_x;
 	Du_x << Dthrust_x, Dtorque_x;
@@ -265,4 +306,3 @@ ctrl(
 
 	return std::make_tuple(u, Du_x, Du_th);
 }
-*/
