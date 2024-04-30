@@ -160,6 +160,20 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
 
 def dynamics(x: State, xd: Target, u: Action, c: Const):
+    xargs = [*x]
+    for i in range(len(xargs)):
+        if xargs[i].shape == (9,):
+            xargs[i] = xargs[i].reshape(3, 3).T
+    xrets, Jxx, Jxu = gapsquad.dynamics(*xargs, *xd, *u, c.dt)
+    xrets = list(xrets)
+    for i in range(len(xrets)):
+        if xrets[i].shape == (3, 3):
+            assert xrets[i].flags["C"]
+            assert not xrets[i].flags["F"]
+            xrets[i] = xrets[i].T.reshape(9)
+    xt = State(*xrets)
+    return xt, Jxx, Jxu
+
     # DYNAMICS
     # --------
 

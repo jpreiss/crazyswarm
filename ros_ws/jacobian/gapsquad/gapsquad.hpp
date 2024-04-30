@@ -14,7 +14,8 @@ using Vec = Eigen::Matrix<FLOAT, 3, 1>;
 using VecT = Eigen::Matrix<FLOAT, 1, 3>;
 using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
 using Mat39 = Eigen::Matrix<FLOAT, 3, 9, Eigen::RowMajor>;
-//using Mat99 = Eigen::Matrix<FLOAT, 9, 9, Eigen::RowMajor>;
+using Mat93 = Eigen::Matrix<FLOAT, 9, 3, Eigen::RowMajor>;
+using Mat99 = Eigen::Matrix<FLOAT, 9, 9, Eigen::RowMajor>;
 
 using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
 using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
@@ -99,89 +100,103 @@ std::tuple<Vec, Mat, Mat> cross(Vec const &a, Vec const &b)
 	return std::make_tuple(x, Ja, Jb);
 }
 
-
-
-
-
-
-/*
-// Returns angle rotating vec. a to vec. b and gradients.
-// Vectors must be unit length.
-// Returns: angle, dangle/da, dangle/db
-std::tuple<FLOAT, Vec, Vec> angleto(Vec a, Vec b)
+template <
+	typename S1, int r1, int c1, int s1,
+	typename S2, int r2, int c2, int s2>
+auto kron(
+	Eigen::Matrix<S1, r1, c1, s1> const &a,
+	Eigen::Matrix<S2, r2, c2, s2> const &b)
 {
-	// Computes atan2 of b in the coordinate frame of a.
-	FLOAT ax = a[0];
-	FLOAT ay = a[1];
-	FLOAT bx = b[0];
-	FLOAT by = b[1];
-	Mat R;
-	R <<
-		 ax, ay,
-		-ay, ax;
-	Vec Rb = R * b;
-	Mat DRb_a;
-	DRb_a <<
-		bx,  by,
-		by, -bx;
-	FLOAT angle = std::atan2(Rb[1], Rb[0]);
-	Vec grad_atan2 {-Rb[1], Rb[0]};
-	Vec grad_a = grad_atan2.transpose() * DRb_a;
-	Vec grad_b = grad_atan2.transpose() * R;
-
-	return std::make_tuple(angle, grad_a, grad_b);
+	using Scalar = decltype(a(0, 0) * b(0, 0)); // let C++ decide
+	Eigen::Matrix<Scalar, r1 * r2, c1 * c2> m;
+	for (int r = 0; r < r1; ++r) {
+		for (int c = 0; c < c1; ++c) {
+			m.template block<r2, c2>(r * r2, c * c2) = a(r, c) * b;
+		}
+	}
+	return m;
 }
+
 
 std::tuple<State, Jxx, Jxu>
 dynamics(
-	Vec ierr, Vec p, Vec v, FLOAT r, FLOAT w, // state
-	Vec p_d, Vec v_d, Vec a_d, FLOAT w_d, // target
-	FLOAT thrust, FLOAT torque, // input
+	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
+	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
+	FLOAT thrust, Vec const &torque, // input
 	FLOAT dt)
 {
-	// derived state - TODO factor out?
-	Vec up {-std::sin(r), std::cos(r)};
-	Eigen::Matrix<FLOAT, 2, XDIM> Dup_x;
-	Dup_x <<
-		0, 0, 0, 0, 0, 0, -std::cos(r), 0,
-		0, 0, 0, 0, 0, 0, -std::sin(r), 0;
-	Vec g {0, GRAV};
+	Vec g {0, 0, GRAV};
+	Mat I3 = Mat::Identity();
+	Mat99 I9 = Mat99::Identity();
+
+	Vec up = R.col(2);
+	Vec acc = thrust * up - g;
+
+	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dacc_x;
+	Dacc_x.setZero();
+	// I3 wrt Z column of R
+	Dacc_x.block<3, 3>(0, 3 + 3 + 3 + 6) = thrust * I3;
+
 
 	// Normally I would use symplectic Euler integration, but plain forward
 	// Euler gives simpler Jacobians.
 
-	Vec acc = thrust * up - g;
-	Eigen::Matrix<FLOAT, 2, XDIM> Dacc_x = thrust * Dup_x;
 	State x_t = std::make_tuple(
 		ierr + dt * (p - p_d),
 		p + dt * v,
 		v + dt * acc,
-		r + dt * w,
+		R + dt * R * hat(w),
 		w + dt * torque
 	);
 
-	Eigen::Matrix<FLOAT, 2, 1> Dvt_r = dt * Dacc_x.col(6);
-	Mat I2 = Mat::Identity();
+	// TODO: This became trivial after we went from angle state to rotation
+	// matrix -- condense some ops.
+	Mat39 Dvt_R = dt * Dacc_x.block<3, 9>(0, 9);
 
-	// dx/dx Jacobian
-	Jxx Dx_x = Jxx::Identity();
-	// integrators
-	Dx_x.block<2, 2>(0, 2) = dt * I2;
-	Dx_x.block<2, 2>(2, 4) = dt * I2;
-	// angular integrator
-	Dx_x(6, 7) = dt;
-	// vel-thrust
-	Dx_x.block<2, 1>(4, 6) = Dvt_r;
+	Mat99 DRt_R = I9 + dt * kron(hat(-w), I3);
 
-	// dx/du Jacobian
+	Vec Rx, Ry, Rz;
+	std::tie(Rx, Ry, Rz) = colsplit(R);
+
+	Mat93 DRt_w;
+	// shift operator constructor transposes everything by itself!
+	VecT Z31 = Vec::Zero();
+	// DRt_w <<
+		// Z31, -Rz,  Ry,
+		 // Rz, Z31, -Rx,
+		// -Ry,  Rx, Z31;
+	DRt_w.setZero();
+	/* 0 */                                DRt_w.block<3, 1>(0, 1) = -dt * Rz;    DRt_w.block<3, 1>(0, 2) =  dt * Ry;
+	DRt_w.block<3, 1>(3, 0) =  dt * Rz;    /* 0 */                                DRt_w.block<3, 1>(3, 2) = -dt * Rx;
+	DRt_w.block<3, 1>(6, 0) = -dt * Ry;    DRt_w.block<3, 1>(6, 1) =  dt * Rx;    /* 0 */
+
+	// auto keeps the expression templates, for possible optimization
+	auto Z33 = Mat::Zero();
+	auto Z39 = Mat39::Zero();
+	auto Z93 = Mat93::Zero();
+	auto Z91 = Eigen::Matrix<FLOAT, 9, 1, Eigen::RowMajor>::Zero();
+	auto dt3 = dt * I3;
+
+	Jxx Dx_x;
+	Dx_x <<
+		 I3, dt3, Z33,   Z39,   Z33,
+		Z33,  I3, dt3,   Z39,   Z33,
+		Z33, Z33,  I3, Dvt_R,   Z33,
+		Z93, Z93, Z93, DRt_R, DRt_w,
+		Z33, Z33, Z33,   Z39,    I3;
+	// (Refers to Dx_x construction above.) Skipping Coriolis term that would
+	// make dw'/dw nonzero because it requires system ID of the inertia matrix,
+	// which we can otherwise skip. For the Crazyflie this term can be
+	// neglected as the quad's inertia is very small.
+
 	Jxu Dx_u = Jxu::Zero();
-	Dx_u.block<2, 1>(4, 0) = dt * up;
-	Dx_u(7, 1) = dt;
+	Dx_u.block<3, 1>(6, 0) = dt * Rz;
+	Dx_u.block<3, 3>(9 + 9, 1) = dt3;
 
 	return std::make_tuple(x_t, Dx_x, Dx_u);
 }
 
-
+/*
 std::tuple<Action, Jux, Jut>
 ctrl(
 	Vec ierr, Vec p, Vec v, FLOAT r, FLOAT w, // state
