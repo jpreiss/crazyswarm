@@ -3,11 +3,11 @@
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 
-#include "planar.hpp"
+#include "gapsquad.hpp"
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(planar, m) {
+PYBIND11_MODULE(gapsquad, m) {
     m.def("angleto", &angleto);
     m.def("ctrl", &ctrl);
     m.def("dynamics", &dynamics);

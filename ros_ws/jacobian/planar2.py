@@ -5,8 +5,8 @@ import sys
 from colorama import Fore
 import numpy as np
 
-import planar
-from planar import angleto
+import gapsquad
+from gapsquad import angleto
 import SO3
 
 
