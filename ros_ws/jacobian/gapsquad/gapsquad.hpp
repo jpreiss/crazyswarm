@@ -23,14 +23,6 @@ using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
 using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
 using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 
-using StateTuple = std::tuple<Vec, Vec, Vec, Mat, Vec>;
-using ActionTuple = std::tuple<FLOAT, Vec>;
-using TargetTuple = std::tuple<Vec, Vec, Vec, FLOAT, Vec>;
-using ParamTuple = std::tuple<
-	FLOAT, FLOAT, FLOAT, FLOAT, FLOAT, FLOAT, // position gains
-	FLOAT, FLOAT, FLOAT, FLOAT // attitude gains
->;
-
 struct State { Vec ierr; Vec p; Vec v; Mat R; Vec w; };
 struct Action { FLOAT thrust; Vec torque; };
 struct Target { Vec p_d; Vec v_d; Vec a_d; FLOAT y_d; Vec w_d; };
@@ -38,14 +30,6 @@ struct Param {
 	FLOAT ki_xy; FLOAT ki_z; FLOAT kp_xy; FLOAT kp_z; FLOAT kv_xy; FLOAT kv_z; // position gains
 	FLOAT kr_xy; FLOAT kr_z; FLOAT kw_xy; FLOAT kw_z; // attitude gains
 };
-
-// The C++ standard doesn't guarantee that this will hold, but it does in
-// practice (at least on Clang++ 15), so we can use it to catch errors due to
-// adding/removing a field.
-static_assert(sizeof(StateTuple) == sizeof(State), "struct/tuple error");
-static_assert(sizeof(ActionTuple) == sizeof(Action), "struct/tuple error");
-static_assert(sizeof(TargetTuple) == sizeof(Target), "struct/tuple error");
-static_assert(sizeof(ParamTuple) == sizeof(Param), "struct/tuple error");
 
 // internally visible types / constants
 FLOAT constexpr GRAV = 9.81;
@@ -323,34 +307,4 @@ void ctrl(
 
 	Du_x << Dthrust_x, Dtorque_x;
 	Du_th << Dthrust_th, Dtorque_th;
-}
-
-std::tuple<ActionTuple, Jux, Jut>
-ctrl_wrap(StateTuple const &xt, TargetTuple const &tt, ParamTuple const &tht)
-{
-	std::tuple<ActionTuple, Jux, Jut> output;
-
-	State const &x = reinterpret_cast<State const &>(xt);
-	Target const &t = reinterpret_cast<Target const &>(tt);
-	Param const &th = reinterpret_cast<Param const &>(tht);
-	Action &u = reinterpret_cast<Action &>(std::get<ActionTuple>(output));
-
-	ctrl(x, t, th, u, std::get<Jux>(output), std::get<Jut>(output));
-
-	return output;
-}
-
-std::tuple<StateTuple, Jxx, Jxu>
-dynamics_wrap(StateTuple const &xt, TargetTuple const &tt, ActionTuple const &ut, FLOAT dt)
-{
-	std::tuple<StateTuple, Jxx, Jxu> output;
-
-	State const &x = reinterpret_cast<State const &>(xt);
-	Target const &t = reinterpret_cast<Target const &>(tt);
-	Action const &u = reinterpret_cast<Action const &>(ut);
-	State &xnext = reinterpret_cast<State &>(std::get<StateTuple>(output));
-
-	dynamics(x, t, u, dt, xnext, std::get<Jxx>(output), std::get<Jxu>(output));
-
-	return output;
 }
