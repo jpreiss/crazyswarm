@@ -15,5 +15,5 @@ benchmark: gapsquad/benchmark.cpp gapsquad/gapsquad.hpp
 .PHONY: stack
 
 stack: benchmark
-	@echo ctrl: `cat benchmark.su | grep ctrl | cut -f 2-`
-	@echo dynamics: `cat benchmark.su | grep dynamics | cut -f 2-`
+	@echo ctrl: `cat benchmark.su | grep "ctrl[^_]" | cut -f 2-`
+	@echo dynamics: `cat benchmark.su | grep "dynamics[^_]" | cut -f 2-`

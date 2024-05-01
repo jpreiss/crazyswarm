@@ -111,12 +111,13 @@ std::tuple<Vec, Mat, Mat> cross(Vec const &a, Vec const &b)
 }
 
 
-std::tuple<State, Jxx, Jxu>
-dynamics(
+void dynamics(
 	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
 	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
 	FLOAT thrust, Vec const &torque, // input
-	FLOAT dt)
+	FLOAT dt, // constants
+	State &x_t, Jxx &Dx_x, Jxu &Dx_u // outputs
+	)
 {
 	Vec g {0, 0, GRAV};
 	Mat I3 = Mat::Identity();
@@ -133,7 +134,7 @@ dynamics(
 	// Normally I would use symplectic Euler integration, but plain forward
 	// Euler gives simpler Jacobians.
 
-	State x_t = std::make_tuple(
+	x_t = std::make_tuple(
 		ierr + dt * (p - p_d),
 		p + dt * v,
 		v + dt * acc,
@@ -169,22 +170,20 @@ dynamics(
 	// auto Z91 = Eigen::Matrix<FLOAT, 9, 1, Eigen::RowMajor>::Zero();
 	auto dt3 = dt * I3;
 
-	Jxx Dx_x = (Jxx() <<
+	Dx_x <<
 		 I3, dt3, Z33,   Z39,   Z33,
 		Z33,  I3, dt3,   Z39,   Z33,
 		Z33, Z33,  I3, Dvt_R,   Z33,
 		Z93, Z93, Z93, DRt_R, DRt_w,
-		Z33, Z33, Z33,   Z39,    I3).finished();
+		Z33, Z33, Z33,   Z39,    I3;
 	// (Refers to Dx_x construction above.) Skipping Coriolis term that would
 	// make dw'/dw nonzero because it requires system ID of the inertia matrix,
 	// which we can otherwise skip. For the Crazyflie this term can be
 	// neglected as the quad's inertia is very small.
 
-	Jxu Dx_u = Jxu::Zero();
+	Dx_u.setZero();
 	Dx_u.block<3, 1>(6, 0) = dt * Rz;
 	Dx_u.block<3, 3>(9 + 9, 1) = dt3;
-
-	return std::make_tuple(x_t, Dx_x, Dx_u);
 }
 
 template <typename S, typename T>
@@ -195,12 +194,12 @@ bool allclose(S &&s, T &&t, FLOAT atol=1e-8, FLOAT rtol=1e-5)
 	return (a < allowed).all();
 }
 
-std::tuple<Action, Jux, Jut>
-ctrl(
+void ctrl(
 	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
 	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
 	FLOAT ki_xy, FLOAT ki_z, FLOAT kp_xy, FLOAT kp_z, FLOAT kv_xy, FLOAT kv_z, // position gains
-	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z // attitude gains
+	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z, // attitude gains
+	Action &u, Jux &Du_x, Jut &Du_th // outputs
 	)
 {
 	Vec g {0, 0, GRAV};
@@ -284,7 +283,7 @@ ctrl(
 
 	Vec ew = w - w_d;
 	Vec torque = -(kr * er) - (kw * ew);
-	Action u {thrust, torque};
+	u = std::make_tuple(thrust, torque);
 
 	// controller chain rules
 	auto Dthrust_x = Dthrust_a * Da_x;
@@ -306,11 +305,44 @@ ctrl(
 		0, 0, 0, 0, 0, 0, -er[1],      0, -ew[1],      0,
 		0, 0, 0, 0, 0, 0,      0, -er[2],      0, -ew[2]).finished();
 
-	Jux Du_x;
 	Du_x << Dthrust_x, Dtorque_x;
-
-	Jut Du_th;
 	Du_th << Dthrust_th, Dtorque_th;
+}
 
-	return std::make_tuple(u, Du_x, Du_th);
+std::tuple<Action, Jux, Jut>
+ctrl_wrap(
+	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
+	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
+	FLOAT ki_xy, FLOAT ki_z, FLOAT kp_xy, FLOAT kp_z, FLOAT kv_xy, FLOAT kv_z, // position gains
+	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z // attitude gains
+	)
+{
+	std::tuple<Action, Jux, Jut> output;
+	ctrl(
+		ierr, p, v, R, w,
+		p_d, v_d, a_d, y_d, w_d,
+		ki_xy, ki_z, kp_xy, kp_z, kv_xy, kv_z,
+		kr_xy, kr_z, kw_xy, kw_z,
+		std::get<Action>(output), std::get<Jux>(output), std::get<Jut>(output)
+	);
+	return output;
+}
+
+std::tuple<State, Jxx, Jxu>
+dynamics_wrap(
+	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
+	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
+	FLOAT thrust, Vec const &torque, // input
+	FLOAT dt // constants
+	)
+{
+	std::tuple<State, Jxx, Jxu> output;
+	dynamics(
+		ierr, p, v, R, w,
+		p_d, v_d, a_d, y_d, w_d,
+		thrust, torque,
+		dt,
+		std::get<State>(output), std::get<Jxx>(output), std::get<Jxu>(output)
+	);
+	return output;
 }

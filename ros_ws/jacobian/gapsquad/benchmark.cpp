@@ -12,10 +12,14 @@ int main(int argc, char const **argv)
 
 	if (argc == 1 || argv[1] == std::string("ctrl")) {
 		for (int i = 0; i < 10000000; ++i) {
+			Action u;
+			Jux Du_x;
+			Jut Du_th;
 			ctrl(
 				ierr, p, v, R, w, // state
 				p_d, v_d, a_d, y_d, w_d, // target
-				ki_xy, ki_z, kp_xy, kp_z, kv_xy, kv_z, kr_xy, kr_z, kw_xy, kw_z // params
+				ki_xy, ki_z, kp_xy, kp_z, kv_xy, kv_z, kr_xy, kr_z, kw_xy, kw_z, // params
+				u, Du_x, Du_th // outputs
 			);
 		}
 	}
@@ -24,12 +28,16 @@ int main(int argc, char const **argv)
 	FLOAT dt; // constants
 
 	if (argc == 1 || argv[1] == std::string("dynamics")) {
+		State xt;
+		Jxx Dx_x;
+		Jxu Dx_u;
 		for (int i = 0; i < 10000000; ++i) {
 			dynamics(
 				ierr, p, v, R, w, // state
 				p_d, v_d, a_d, y_d, w_d, // target
 				thrust, torque, // action
-				dt // constants
+				dt, // constants
+				xt, Dx_x, Dx_u // outputs
 			);
 		}
 	}
