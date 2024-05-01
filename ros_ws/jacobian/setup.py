@@ -13,6 +13,7 @@ ext_modules = [
         ["gapsquad/bindings.cpp"],
         depends=["gapsquad/gapsquad.hpp"],
         include_dirs=[eigen, unsupported],
+        define_macros=[("EIGEN_NO_MALLOC", None)],
         cxx_std=14,
         ),
 ]
