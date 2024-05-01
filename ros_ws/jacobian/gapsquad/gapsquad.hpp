@@ -270,9 +270,6 @@ ctrl(
 	DRd_a.block<3, 3>(3, 0) = Dygoal_a;
 	DRd_a.block<3, 3>(6, 0) = Dzgoal_a;
 
-	Eigen::Matrix<FLOAT, 9, XDIM> DR_x;
-	DR_x.setZero();
-	DR_x.block<9, 9>(0, 9) = Mat99::Identity();
 	Vec er;
 	Mat39 Der_R, Der_Rd;
 	std::tie(er, Der_R, Der_Rd) = SO3error(R, Rd);
@@ -285,15 +282,15 @@ ctrl(
 	auto Dthrust_x = Dthrust_a * Da_x;
 	auto Dthrust_th = Dthrust_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 3, XDIM> Der_x = Der_R * DR_x + Der_Rd * DRd_a * Da_x;
+	Eigen::Matrix<FLOAT, 3, XDIM> Der_x;
+	Der_x.setZero();
+	Der_x.block<3, 9>(0, 9) = Der_R;
+	Der_x += Der_Rd * DRd_a * Da_x;
 
 	Eigen::Matrix<FLOAT, 3, TDIM> Der_th = Der_Rd * DRd_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_xw;
-	Dtorque_xw.setZero();
-	Dtorque_xw.block<3, 3>(0, 3 + 3 + 3 + 9) = -kw * I;
-
-	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_x = -kr * Der_x + Dtorque_xw;
+	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_x = -kr * Der_x;
+	Dtorque_x.block<3, 3>(0, 3 + 3 + 3 + 9) -= kw * I;
 
 	Eigen::Matrix<FLOAT, 3, TDIM> Dtorque_th = -kr * Der_th;
 	Dtorque_th.block<3, 1>(0, 3) -= er;
