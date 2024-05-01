@@ -215,10 +215,7 @@ bool allclose(S &&s, T &&t, FLOAT atol=1e-8, FLOAT rtol=1e-5)
 }
 
 void ctrl(
-	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
-	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
-	FLOAT ki_xy, FLOAT ki_z, FLOAT kp_xy, FLOAT kp_z, FLOAT kv_xy, FLOAT kv_z, // position gains
-	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z, // attitude gains
+	State const &x, Target const &t, Param const &th, // inputs
 	Action &u, Jux &Du_x, Jut &Du_th // outputs
 	)
 {
@@ -226,27 +223,27 @@ void ctrl(
 	Mat I = Mat::Identity();
 
 	using Diag = Eigen::DiagonalMatrix<FLOAT, 3>;
-	Diag ki {ki_xy, ki_xy, ki_z};
-	Diag kp {kp_xy, kp_xy, kp_z};
-	Diag kv {kv_xy, kv_xy, kv_z};
-	Diag kr {kr_xy, kr_xy, kr_z};
-	Diag kw {kw_xy, kw_xy, kw_z};
+	Diag ki {th.ki_xy, th.ki_xy, th.ki_z};
+	Diag kp {th.kp_xy, th.kp_xy, th.kp_z};
+	Diag kv {th.kv_xy, th.kv_xy, th.kv_z};
+	Diag kr {th.kr_xy, th.kr_xy, th.kr_z};
+	Diag kw {th.kw_xy, th.kw_xy, th.kw_z};
 
 	// position part components
-	Vec perr = p - p_d;
-	Vec verr = v - v_d;
+	Vec perr = x.p - t.p_d;
+	Vec verr = x.v - t.v_d;
 	// Parens because Eigen forbids negating diagonal matrices for some reason?
-	Vec feedback = - (ki * ierr) - (kp * perr) - (kv * verr);
-	Vec a = feedback + a_d + g;
+	Vec feedback = - (ki * x.ierr) - (kp * perr) - (kv * verr);
+	Vec a = feedback + t.a_d + g;
 
 	Eigen::Matrix<FLOAT, 3, XDIM> Da_x;
 	Da_x << -(ki * I), -(kp * I), -(kv * I), Eigen::Matrix<FLOAT, 3, 9 + 3>::Zero();
 
 	Eigen::Matrix<FLOAT, 3, TDIM> Da_th;
 	Da_th <<
-		-ierr[0],        0, -perr[0],        0, -verr[0],        0, 0, 0, 0, 0,
-		-ierr[1],        0, -perr[1],        0, -verr[1],        0, 0, 0, 0, 0,
-		       0, -ierr[2],        0, -perr[2],        0, -verr[2], 0, 0, 0, 0;
+		-x.ierr[0],          0, -perr[0],        0, -verr[0],        0, 0, 0, 0, 0,
+		-x.ierr[1],          0, -perr[1],        0, -verr[1],        0, 0, 0, 0, 0,
+		         0, -x.ierr[2],        0, -perr[2],        0, -verr[2], 0, 0, 0, 0;
 
 	u.thrust = a.norm();
 	VecT Dthrust_a = (a / u.thrust).transpose();
@@ -255,7 +252,7 @@ void ctrl(
 	Mat Dzgoal_a;
 	std::tie(zgoal, Dzgoal_a) = normalize(a);
 
-	Vec xgoalflat { std::cos(y_d), std::sin(y_d), 0 };
+	Vec xgoalflat { std::cos(t.y_d), std::sin(t.y_d), 0 };
 	Vec ygoalnn;
 	Mat Dygoalnn_zgoal, dummy;
 	std::tie(ygoalnn, Dygoalnn_zgoal, dummy) = cross(zgoal, xgoalflat);
@@ -299,9 +296,9 @@ void ctrl(
 
 	Vec er;
 	Mat39 Der_R, Der_Rd;
-	std::tie(er, Der_R, Der_Rd) = SO3error(R, Rd);
+	std::tie(er, Der_R, Der_Rd) = SO3error(x.R, Rd);
 
-	Vec ew = w - w_d;
+	Vec ew = x.w - t.w_d;
 	u.torque = -(kr * er) - (kw * ew);
 
 	// controller chain rules
@@ -329,23 +326,17 @@ void ctrl(
 }
 
 std::tuple<ActionTuple, Jux, Jut>
-ctrl_wrap(
-	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
-	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
-	FLOAT ki_xy, FLOAT ki_z, FLOAT kp_xy, FLOAT kp_z, FLOAT kv_xy, FLOAT kv_z, // position gains
-	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z // attitude gains
-	)
+ctrl_wrap(StateTuple const &xt, TargetTuple const &tt, ParamTuple const &tht)
 {
 	std::tuple<ActionTuple, Jux, Jut> output;
-	Action a;
-	ctrl(
-		ierr, p, v, R, w,
-		p_d, v_d, a_d, y_d, w_d,
-		ki_xy, ki_z, kp_xy, kp_z, kv_xy, kv_z,
-		kr_xy, kr_z, kw_xy, kw_z,
-		a, std::get<Jux>(output), std::get<Jut>(output)
-	);
-	std::get<ActionTuple>(output) = std::make_tuple(a.thrust, a.torque);
+
+	State const &x = reinterpret_cast<State const &>(xt);
+	Target const &t = reinterpret_cast<Target const &>(tt);
+	Param const &th = reinterpret_cast<Param const &>(tht);
+	Action &u = reinterpret_cast<Action &>(std::get<ActionTuple>(output));
+
+	ctrl(x, t, th, u, std::get<Jux>(output), std::get<Jut>(output));
+
 	return output;
 }
 

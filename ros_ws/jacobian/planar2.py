@@ -71,7 +71,7 @@ def rets2state(xrets):
 def ctrl(x: State, xd: Target, th: Param, c: Const):
     """Returns: u, Du_x, Du_th."""
     xargs = state2args(x)
-    urets, Jux, Jut = gapsquad.ctrl(*xargs, *xd, *th)
+    urets, Jux, Jut = gapsquad.ctrl(xargs, xd, th)
     u = Action(*urets)
     assert Jux.shape == (Action.size, State.size)
     assert Jut.shape == (Action.size, Param.size)
