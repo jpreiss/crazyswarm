@@ -206,6 +206,14 @@ dynamics(
 	return std::make_tuple(x_t, Dx_x, Dx_u);
 }
 
+template <typename S, typename T>
+bool allclose(S &&s, T &&t, FLOAT atol=1e-8, FLOAT rtol=1e-5)
+{
+	auto a = (s - t).array().abs();
+	auto allowed = rtol * t.array().abs() + atol;
+	return (a < allowed).all();
+}
+
 std::tuple<Action, Jux, Jut>
 ctrl(
 	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
@@ -235,6 +243,10 @@ ctrl(
 	Mat Dzgoal_a;
 	std::tie(zgoal, Dzgoal_a) = normalize(a);
 
+	if (!allclose(zgoal, a / thrust)) {
+		throw std::runtime_error("normalization wrong");
+	}
+
 	Vec xgoalflat { std::cos(y_d), std::sin(y_d), 0 };
 	Vec ygoalnn;
 	Mat Dygoalnn_zgoal, dummy;
@@ -251,7 +263,7 @@ ctrl(
 	if (std::abs(norm - 1) > 1e-7) {
 		throw std::runtime_error("xgoal norm too far from 1: is " + std::to_string(norm));
 	}
-	Mat Dxgoal_a = Dxgoal_ygoal * Dygoal_a + Dxgoal_zgoal + Dzgoal_a;
+	Mat Dxgoal_a = Dxgoal_ygoal * Dygoal_a + Dxgoal_zgoal * Dzgoal_a;
 
 	Mat Rd = fromcols(xgoal, ygoal, zgoal);
 	FLOAT det = Rd.determinant();
@@ -283,7 +295,6 @@ ctrl(
 	auto Dthrust_x = Dthrust_a * Da_x;
 	auto Dthrust_th = Dthrust_a * Da_th;
 
-	//auto Der_x = Der_up * Dup_x + Der_upgoal * Dupgoal_a * Da_x;
 	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Der_x = Der_R * DR_x + Der_Rd * DRd_a * Da_x;
 
 	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Der_th = Der_Rd * DRd_a * Da_th;

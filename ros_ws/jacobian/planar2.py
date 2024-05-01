@@ -353,8 +353,8 @@ def main():
         print("du/dx")
         finitediff_check(x.to_arr(), Du_x, ctrl_x2u, State.dim_str, Action.dim_str)
 
-        #print("du/dth")
-        #finitediff_check(th.to_arr(), Du_th, ctrl_th2u, Param.dim_str, Action.dim_str)
+        print("du/dth")
+        finitediff_check(th.to_arr(), Du_th, ctrl_th2u, Param.dim_str, Action.dim_str)
 
         def dyn_x2x(xa):
             x2 = State.from_arr(xa)
