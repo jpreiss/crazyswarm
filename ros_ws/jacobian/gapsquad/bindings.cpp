@@ -3,6 +3,7 @@
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 
+using FLOAT = double;
 #include "gapsquad.hpp"
 
 namespace py = pybind11;

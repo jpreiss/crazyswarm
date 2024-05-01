@@ -1,5 +1,7 @@
 #include <string>
 
+#define EIGEN_INITIALIZE_MATRICES_BY_ZERO
+using FLOAT = float;
 #include "gapsquad.hpp"
 
 

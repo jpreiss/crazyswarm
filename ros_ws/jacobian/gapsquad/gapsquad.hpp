@@ -5,8 +5,13 @@
 #include <Eigen/KroneckerProduct>
 
 
+// NOTE: FLOAT must resolve to a floating-point type. Add a `using` before
+// including this header, i.e.
+//
+// using FLOAT = double;
+// #include "gapsquad.hpp"
+
 // externally visible types / constants
-using FLOAT = double;
 int constexpr XDIM = 3 + 3 + 3 + 9 + 3;
 int constexpr UDIM = 1 + 3;
 int constexpr TDIM = 2 * 5; // 5 params, each with xy and z variants
