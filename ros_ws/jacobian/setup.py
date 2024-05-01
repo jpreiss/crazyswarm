@@ -5,11 +5,14 @@ from setuptools import setup
 
 __version__ = "0.2.1"
 
+eigen = eigenpip.get_include()
+unsupported = eigen + "/unsupported"
+
 ext_modules = [
     Pybind11Extension("gapsquad",
         ["gapsquad/bindings.cpp"],
         depends=["gapsquad/gapsquad.hpp"],
-        include_dirs=[eigenpip.get_include()],
+        include_dirs=[eigen, unsupported],
         cxx_std=14,
         ),
 ]

@@ -2,6 +2,7 @@
 #include <tuple>
 
 #include <Eigen/Dense>
+#include <Eigen/KroneckerProduct>
 
 
 using FLOAT = double;
@@ -110,23 +111,6 @@ std::tuple<Vec, Mat, Mat> cross(Vec const &a, Vec const &b)
 	return std::make_tuple(x, Ja, Jb);
 }
 
-template <
-	typename S1, int r1, int c1, int s1,
-	typename S2, int r2, int c2, int s2>
-auto kron(
-	Eigen::Matrix<S1, r1, c1, s1> const &a,
-	Eigen::Matrix<S2, r2, c2, s2> const &b)
-{
-	using Scalar = decltype(a(0, 0) * b(0, 0)); // let C++ decide
-	Eigen::Matrix<Scalar, r1 * r2, c1 * c2> m;
-	for (int r = 0; r < r1; ++r) {
-		for (int c = 0; c < c1; ++c) {
-			m.template block<r2, c2>(r * r2, c * c2) = a(r, c) * b;
-		}
-	}
-	return m;
-}
-
 
 std::tuple<State, Jxx, Jxu>
 dynamics(
@@ -163,7 +147,7 @@ dynamics(
 	// matrix -- condense some ops.
 	Mat39 Dvt_R = dt * Dacc_x.block<3, 9>(0, 9);
 
-	Mat99 DRt_R = I9 + dt * kron(hat(-w), I3);
+	Mat99 DRt_R = I9 + dt * kroneckerProduct(hat(-w), I3);
 
 	Vec Rx, Ry, Rz;
 	std::tie(Rx, Ry, Rz) = colsplit(R);
