@@ -11,7 +11,7 @@ unsupported = eigen + "/unsupported"
 ext_modules = [
     Pybind11Extension("gapsquad",
         ["gapsquad/bindings.cpp"],
-        depends=["gapsquad/gapsquad.hpp"],
+        depends=["gapsquad/gapsquad.h", "gapsquad/gapsquad.hpp"],
         include_dirs=[eigen, unsupported],
         define_macros=[("EIGEN_NO_MALLOC", None)],
         cxx_std=14,
@@ -30,7 +30,7 @@ setup(
     ext_modules=ext_modules,
     packages=["gapsquad"],
     package_data={
-        "gapsquad": ["gapsquad/bindings.cpp", "gapsquad/gapsquad.hpp"]
+        "gapsquad": ["gapsquad/bindings.cpp", "gapsquad/gapsquad.h", "gapsquad/gapsquad.hpp"]
     },
     #requires=["numpy"],
     zip_safe=False,  # TODO: Understand.

@@ -9,7 +9,7 @@ ctrl.py: ctrl.c cmath3d.py c2py.py inputs.py computations.py
 
 EIGEN := $(shell python -c 'import eigenpip as e; print(e.get_include())')
 
-benchmark: gapsquad/benchmark.cpp gapsquad/gapsquad.hpp
+benchmark: gapsquad/benchmark.cpp gapsquad/gapsquad.h gapsquad/gapsquad.hpp
 	$(CXX) $(CXXFLAGS) -g -O3 -I$(EIGEN) -I$(EIGEN)/unsupported --std=c++14 -DEIGEN_NO_MALLOC -fstack-usage -o $@ $<
 
 .PHONY: stack

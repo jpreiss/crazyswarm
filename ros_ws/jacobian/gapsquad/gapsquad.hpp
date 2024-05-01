@@ -4,34 +4,9 @@
 #include <Eigen/Dense>
 #include <Eigen/KroneckerProduct>
 
+#include "gapsquad.h"
 
-// NOTE: FLOAT must resolve to a floating-point type. Add a `using` before
-// including this header, i.e.
-//
-// using FLOAT = double;
-// #include "gapsquad.hpp"
 
-// externally visible types / constants
-int constexpr XDIM = 3 + 3 + 3 + 9 + 3;
-int constexpr UDIM = 1 + 3;
-int constexpr TDIM = 2 * 5; // 5 params, each with xy and z variants
-
-using Vec = Eigen::Matrix<FLOAT, 3, 1>;
-using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
-using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
-using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
-using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
-using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
-
-struct State { Vec ierr; Vec p; Vec v; Mat R; Vec w; };
-struct Action { FLOAT thrust; Vec torque; };
-struct Target { Vec p_d; Vec v_d; Vec a_d; FLOAT y_d; Vec w_d; };
-struct Param {
-	FLOAT ki_xy; FLOAT ki_z; FLOAT kp_xy; FLOAT kp_z; FLOAT kv_xy; FLOAT kv_z; // position gains
-	FLOAT kr_xy; FLOAT kr_z; FLOAT kw_xy; FLOAT kw_z; // attitude gains
-};
-
-// internally visible types / constants
 FLOAT constexpr GRAV = 9.81;
 using Mat39 = Eigen::Matrix<FLOAT, 3, 9>;
 using Mat93 = Eigen::Matrix<FLOAT, 9, 3>;
@@ -51,7 +26,6 @@ Mat fromcols(Vec const &a, Vec const &b, Vec const &c)
 	m.col(2) = c;
 	return m;
 }
-
 
 /*
 Returns error on Lie algebra, plus Jacobians (3 x 9).
