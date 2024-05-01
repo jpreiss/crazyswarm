@@ -228,10 +228,6 @@ ctrl(
 	Mat Dzgoal_a;
 	std::tie(zgoal, Dzgoal_a) = normalize(a);
 
-	if (!allclose(zgoal, a / thrust)) {
-		throw std::runtime_error("normalization wrong");
-	}
-
 	Vec xgoalflat { std::cos(y_d), std::sin(y_d), 0 };
 	Vec ygoalnn;
 	Mat Dygoalnn_zgoal, dummy;
@@ -244,22 +240,31 @@ ctrl(
 	Vec xgoal;
 	Mat Dxgoal_ygoal, Dxgoal_zgoal;
 	std::tie(xgoal, Dxgoal_ygoal, Dxgoal_zgoal) = cross(ygoal, zgoal);
-	FLOAT norm = xgoal.norm();
-	if (std::abs(norm - 1) > 1e-7) {
-		throw std::runtime_error("xgoal norm too far from 1: is " + std::to_string(norm));
-	}
 	Mat Dxgoal_a = Dxgoal_ygoal * Dygoal_a + Dxgoal_zgoal * Dzgoal_a;
-
 	Mat Rd = fromcols(xgoal, ygoal, zgoal);
-	FLOAT det = Rd.determinant();
-	if (std::abs(det - 1) > 1e-7) {
-		throw std::runtime_error("Rd determinant too far from 1: is " + std::to_string(det));
+
+	#ifndef CRAZYFLIE_FW
+	{
+		// extra correctness checks
+		if (!allclose(zgoal, a / thrust)) {
+			throw std::runtime_error("normalization wrong");
+		}
+		FLOAT norm = xgoal.norm();
+		if (std::abs(norm - 1) > 1e-7) {
+			throw std::runtime_error("xgoal norm too far from 1: is " + std::to_string(norm));
+		}
+		FLOAT det = Rd.determinant();
+		if (std::abs(det - 1) > 1e-7) {
+			throw std::runtime_error("Rd determinant too far from 1: is " + std::to_string(det));
+		}
+		Mat RdTRd = Rd.transpose() * Rd;
+		FLOAT maxerr = (RdTRd - I).array().abs().maxCoeff();
+		if (maxerr > 1e-7) {
+			throw std::runtime_error("Rd is not orthogonal: maxerr is " + std::to_string(maxerr));
+		}
 	}
-	Mat RdTRd = Rd.transpose() * Rd;
-	FLOAT maxerr = (RdTRd - I).array().abs().maxCoeff();
-	if (maxerr > 1e-7) {
-		throw std::runtime_error("Rd is not orthogonal: maxerr is " + std::to_string(maxerr));
-	}
+	#endif
+
 	Eigen::Matrix<FLOAT, 9, 3> DRd_a;
 	DRd_a.block<3, 3>(0, 0) = Dxgoal_a;
 	DRd_a.block<3, 3>(3, 0) = Dygoal_a;
