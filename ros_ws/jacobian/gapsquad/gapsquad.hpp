@@ -74,6 +74,7 @@ std::tuple<Vec, Mat39, Mat39> SO3error(Mat const &R, Mat const &Rd)
 		              Z, -Rz.transpose(),  Ry.transpose(),
 		 Rz.transpose(),               Z, -Rx.transpose(),
 		-Ry.transpose(),  Rx.transpose(),              Z).finished();
+	// these are the signs that make torque = -k * error work for k > 0.
 	return std::make_tuple(-err, -JR, -JRd);
 }
 
@@ -128,7 +129,6 @@ dynamics(
 	Dacc_x.setZero();
 	// I3 wrt Z column of R
 	Dacc_x.block<3, 3>(0, 3 + 3 + 3 + 6) = thrust * I3;
-
 
 	// Normally I would use symplectic Euler integration, but plain forward
 	// Euler gives simpler Jacobians.
