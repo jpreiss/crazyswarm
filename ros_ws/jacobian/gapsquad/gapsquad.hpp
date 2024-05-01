@@ -5,19 +5,14 @@
 #include <Eigen/KroneckerProduct>
 
 
+// externally visible types / constants
 using FLOAT = double;
 int constexpr XDIM = 3 + 3 + 3 + 9 + 3;
 int constexpr UDIM = 1 + 3;
 int constexpr TDIM = 5;
-FLOAT constexpr GRAV = 9.81;
 
 using Vec = Eigen::Matrix<FLOAT, 3, 1>;
-using VecT = Eigen::Matrix<FLOAT, 1, 3>;
 using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
-using Mat39 = Eigen::Matrix<FLOAT, 3, 9, Eigen::RowMajor>;
-using Mat93 = Eigen::Matrix<FLOAT, 9, 3, Eigen::RowMajor>;
-using Mat99 = Eigen::Matrix<FLOAT, 9, 9, Eigen::RowMajor>;
-
 using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
 using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
 using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
@@ -27,6 +22,12 @@ using State = std::tuple<Vec, Vec, Vec, Mat, Vec>;
 using Action = std::tuple<FLOAT, Vec>;
 using Target = std::tuple<Vec, Vec, Vec, FLOAT, Vec>;
 
+// internally visible types / constants
+FLOAT constexpr GRAV = 9.81;
+using Mat39 = Eigen::Matrix<FLOAT, 3, 9>;
+using Mat93 = Eigen::Matrix<FLOAT, 9, 3>;
+using Mat99 = Eigen::Matrix<FLOAT, 9, 9>;
+using VecT = Eigen::Matrix<FLOAT, 1, 3>;
 
 std::tuple<Vec, Vec, Vec> colsplit(Mat const &m)
 {
@@ -126,7 +127,7 @@ dynamics(
 	Vec up = R.col(2);
 	Vec acc = thrust * up - g;
 
-	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dacc_x;
+	Eigen::Matrix<FLOAT, 3, XDIM> Dacc_x;
 	Dacc_x.setZero();
 	// I3 wrt Z column of R
 	Dacc_x.block<3, 3>(0, 3 + 3 + 3 + 6) = thrust * I3;
@@ -214,10 +215,10 @@ ctrl(
 	Vec feedback = - ki * ierr - kp * perr - kv * verr;
 	Vec a = feedback + a_d + g;
 
-	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Da_x;
-	Da_x << -ki * I, -kp * I, -kv * I, Eigen::Matrix<FLOAT, 3, 9 + 3, Eigen::RowMajor>::Zero();
+	Eigen::Matrix<FLOAT, 3, XDIM> Da_x;
+	Da_x << -ki * I, -kp * I, -kv * I, Eigen::Matrix<FLOAT, 3, 9 + 3>::Zero();
 
-	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Da_th;
+	Eigen::Matrix<FLOAT, 3, TDIM> Da_th;
 	Da_th << -ierr, -perr, -verr, Eigen::Matrix<FLOAT, 3, 2>::Zero();
 
 	FLOAT thrust = a.norm();
@@ -259,12 +260,12 @@ ctrl(
 	if (maxerr > 1e-7) {
 		throw std::runtime_error("Rd is not orthogonal: maxerr is " + std::to_string(maxerr));
 	}
-	Eigen::Matrix<FLOAT, 9, 3, Eigen::RowMajor> DRd_a;
+	Eigen::Matrix<FLOAT, 9, 3> DRd_a;
 	DRd_a.block<3, 3>(0, 0) = Dxgoal_a;
 	DRd_a.block<3, 3>(3, 0) = Dygoal_a;
 	DRd_a.block<3, 3>(6, 0) = Dzgoal_a;
 
-	Eigen::Matrix<FLOAT, 9, XDIM, Eigen::RowMajor> DR_x;
+	Eigen::Matrix<FLOAT, 9, XDIM> DR_x;
 	DR_x.setZero();
 	DR_x.block<9, 9>(0, 9) = Mat99::Identity();
 	Vec er;
@@ -279,17 +280,17 @@ ctrl(
 	auto Dthrust_x = Dthrust_a * Da_x;
 	auto Dthrust_th = Dthrust_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Der_x = Der_R * DR_x + Der_Rd * DRd_a * Da_x;
+	Eigen::Matrix<FLOAT, 3, XDIM> Der_x = Der_R * DR_x + Der_Rd * DRd_a * Da_x;
 
-	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Der_th = Der_Rd * DRd_a * Da_th;
+	Eigen::Matrix<FLOAT, 3, TDIM> Der_th = Der_Rd * DRd_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dtorque_xw;
+	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_xw;
 	Dtorque_xw.setZero();
 	Dtorque_xw.block<3, 3>(0, 3 + 3 + 3 + 9) = -kw * I;
 
-	Eigen::Matrix<FLOAT, 3, XDIM, Eigen::RowMajor> Dtorque_x = -kr * Der_x + Dtorque_xw;
+	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_x = -kr * Der_x + Dtorque_xw;
 
-	Eigen::Matrix<FLOAT, 3, TDIM, Eigen::RowMajor> Dtorque_th = -kr * Der_th;
+	Eigen::Matrix<FLOAT, 3, TDIM> Dtorque_th = -kr * Der_th;
 	Dtorque_th.block<3, 1>(0, 3) -= er;
 	Dtorque_th.block<3, 1>(0, 4) -= ew;
 
