@@ -23,9 +23,29 @@ using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
 using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
 using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 
-using State = std::tuple<Vec, Vec, Vec, Mat, Vec>;
-using Action = std::tuple<FLOAT, Vec>;
-using Target = std::tuple<Vec, Vec, Vec, FLOAT, Vec>;
+using StateTuple = std::tuple<Vec, Vec, Vec, Mat, Vec>;
+using ActionTuple = std::tuple<FLOAT, Vec>;
+using TargetTuple = std::tuple<Vec, Vec, Vec, FLOAT, Vec>;
+using ParamTuple = std::tuple<
+	FLOAT, FLOAT, FLOAT, FLOAT, FLOAT, FLOAT, // position gains
+	FLOAT, FLOAT, FLOAT, FLOAT // attitude gains
+>;
+
+struct State { Vec ierr; Vec p; Vec v; Mat R; Vec w; };
+struct Action { FLOAT thrust; Vec torque; };
+struct Target { Vec p_d; Vec v_d; Vec a_d; FLOAT y_d; Vec w_d; };
+struct Param {
+	FLOAT ki_xy; FLOAT ki_z; FLOAT kp_xy; FLOAT kp_z; FLOAT kv_xy; FLOAT kv_z; // position gains
+	FLOAT kr_xy; FLOAT kr_z; FLOAT kw_xy; FLOAT kw_z; // attitude gains
+};
+
+// The C++ standard doesn't guarantee that this will hold, but it does in
+// practice (at least on Clang++ 15), so we can use it to catch errors due to
+// adding/removing a field.
+static_assert(sizeof(StateTuple) == sizeof(State), "struct/tuple error");
+static_assert(sizeof(ActionTuple) == sizeof(Action), "struct/tuple error");
+static_assert(sizeof(TargetTuple) == sizeof(Target), "struct/tuple error");
+static_assert(sizeof(ParamTuple) == sizeof(Param), "struct/tuple error");
 
 // internally visible types / constants
 FLOAT constexpr GRAV = 9.81;
@@ -139,13 +159,11 @@ void dynamics(
 	// Normally I would use symplectic Euler integration, but plain forward
 	// Euler gives simpler Jacobians.
 
-	x_t = std::make_tuple(
-		ierr + dt * (p - p_d),
-		p + dt * v,
-		v + dt * acc,
-		R + dt * R * hat(w),
-		w + dt * torque
-	);
+	x_t.ierr = ierr + dt * (p - p_d);
+	x_t.p = p + dt * v;
+	x_t.v = v + dt * acc;
+	x_t.R = R + dt * R * hat(w);
+	x_t.w = w + dt * torque;
 
 	// TODO: This became trivial after we went from angle state to rotation
 	// matrix -- condense some ops.
@@ -233,8 +251,8 @@ void ctrl(
 		-ierr[1],        0, -perr[1],        0, -verr[1],        0, 0, 0, 0, 0,
 		       0, -ierr[2],        0, -perr[2],        0, -verr[2], 0, 0, 0, 0;
 
-	FLOAT thrust = a.norm();
-	VecT Dthrust_a = (a / thrust).transpose();
+	u.thrust = a.norm();
+	VecT Dthrust_a = (a / u.thrust).transpose();
 
 	Vec zgoal;
 	Mat Dzgoal_a;
@@ -258,7 +276,7 @@ void ctrl(
 	#ifndef CRAZYFLIE_FW
 	{
 		// extra correctness checks
-		if (!allclose(zgoal, a / thrust)) {
+		if (!allclose(zgoal, a / u.thrust)) {
 			throw std::runtime_error("normalization wrong");
 		}
 		FLOAT norm = xgoal.norm();
@@ -287,8 +305,7 @@ void ctrl(
 	std::tie(er, Der_R, Der_Rd) = SO3error(R, Rd);
 
 	Vec ew = w - w_d;
-	Vec torque = -(kr * er) - (kw * ew);
-	u = std::make_tuple(thrust, torque);
+	u.torque = -(kr * er) - (kw * ew);
 
 	// controller chain rules
 	auto Dthrust_x = Dthrust_a * Da_x;
@@ -314,7 +331,7 @@ void ctrl(
 	Du_th << Dthrust_th, Dtorque_th;
 }
 
-std::tuple<Action, Jux, Jut>
+std::tuple<ActionTuple, Jux, Jut>
 ctrl_wrap(
 	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
 	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
@@ -322,18 +339,20 @@ ctrl_wrap(
 	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z // attitude gains
 	)
 {
-	std::tuple<Action, Jux, Jut> output;
+	std::tuple<ActionTuple, Jux, Jut> output;
+	Action a;
 	ctrl(
 		ierr, p, v, R, w,
 		p_d, v_d, a_d, y_d, w_d,
 		ki_xy, ki_z, kp_xy, kp_z, kv_xy, kv_z,
 		kr_xy, kr_z, kw_xy, kw_z,
-		std::get<Action>(output), std::get<Jux>(output), std::get<Jut>(output)
+		a, std::get<Jux>(output), std::get<Jut>(output)
 	);
+	std::get<ActionTuple>(output) = std::make_tuple(a.thrust, a.torque);
 	return output;
 }
 
-std::tuple<State, Jxx, Jxu>
+std::tuple<StateTuple, Jxx, Jxu>
 dynamics_wrap(
 	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
 	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
@@ -341,13 +360,15 @@ dynamics_wrap(
 	FLOAT dt // constants
 	)
 {
-	std::tuple<State, Jxx, Jxu> output;
+	std::tuple<StateTuple, Jxx, Jxu> output;
+	State s;
 	dynamics(
 		ierr, p, v, R, w,
 		p_d, v_d, a_d, y_d, w_d,
 		thrust, torque,
 		dt,
-		std::get<State>(output), std::get<Jxx>(output), std::get<Jxu>(output)
+		s, std::get<Jxx>(output), std::get<Jxu>(output)
 	);
+	std::get<StateTuple>(output) = std::make_tuple(s.ierr, s.p, s.v, s.R, s.w);
 	return output;
 }
