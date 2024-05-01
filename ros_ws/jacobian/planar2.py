@@ -46,7 +46,7 @@ def namedvec(name, fields, sizes):
 State = namedvec("State", "ierr p v R w", "3 3 3 9 3")
 Action = namedvec("Action", "thrust torque", "1 3")
 Target = namedvec("Target", "p_d v_d a_d y_d w_d", "3 3 3 1 3")
-Param = namedvec("Param", "ki kp kv kr kw", "1 1 1 1 1")
+Param = namedvec("Param", "ki_xy ki_z kp_xy kp_z kv_xy kv_z kr_xy kr_z kw_xy kw_z", "1 1 1 1 1 1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
 
 

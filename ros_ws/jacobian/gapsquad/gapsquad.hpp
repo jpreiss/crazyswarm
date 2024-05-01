@@ -9,7 +9,7 @@
 using FLOAT = double;
 int constexpr XDIM = 3 + 3 + 3 + 9 + 3;
 int constexpr UDIM = 1 + 3;
-int constexpr TDIM = 5;
+int constexpr TDIM = 2 * 5; // 5 params, each with xy and z variants
 
 using Vec = Eigen::Matrix<FLOAT, 3, 1>;
 using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
@@ -199,23 +199,35 @@ std::tuple<Action, Jux, Jut>
 ctrl(
 	Vec ierr, Vec p, Vec v, Mat R, Vec w, // state
 	Vec p_d, Vec v_d, Vec a_d, FLOAT y_d, Vec w_d, // target
-	FLOAT ki, FLOAT kp, FLOAT kv, FLOAT kr, FLOAT kw // params
+	FLOAT ki_xy, FLOAT ki_z, FLOAT kp_xy, FLOAT kp_z, FLOAT kv_xy, FLOAT kv_z, // position gains
+	FLOAT kr_xy, FLOAT kr_z, FLOAT kw_xy, FLOAT kw_z // attitude gains
 	)
 {
 	Vec g {0, 0, GRAV};
 	Mat I = Mat::Identity();
 
+	using Diag = Eigen::DiagonalMatrix<FLOAT, 3>;
+	Diag ki {ki_xy, ki_xy, ki_z};
+	Diag kp {kp_xy, kp_xy, kp_z};
+	Diag kv {kv_xy, kv_xy, kv_z};
+	Diag kr {kr_xy, kr_xy, kr_z};
+	Diag kw {kw_xy, kw_xy, kw_z};
+
 	// position part components
 	Vec perr = p - p_d;
 	Vec verr = v - v_d;
-	Vec feedback = - ki * ierr - kp * perr - kv * verr;
+	// Parens because Eigen forbids negating diagonal matrices for some reason?
+	Vec feedback = - (ki * ierr) - (kp * perr) - (kv * verr);
 	Vec a = feedback + a_d + g;
 
 	Eigen::Matrix<FLOAT, 3, XDIM> Da_x;
-	Da_x << -ki * I, -kp * I, -kv * I, Eigen::Matrix<FLOAT, 3, 9 + 3>::Zero();
+	Da_x << -(ki * I), -(kp * I), -(kv * I), Eigen::Matrix<FLOAT, 3, 9 + 3>::Zero();
 
 	Eigen::Matrix<FLOAT, 3, TDIM> Da_th;
-	Da_th << -ierr, -perr, -verr, Eigen::Matrix<FLOAT, 3, 2>::Zero();
+	Da_th <<
+		-ierr[0],        0, -perr[0],        0, -verr[0],        0, 0, 0, 0, 0,
+		-ierr[1],        0, -perr[1],        0, -verr[1],        0, 0, 0, 0, 0,
+		       0, -ierr[2],        0, -perr[2],        0, -verr[2], 0, 0, 0, 0;
 
 	FLOAT thrust = a.norm();
 	VecT Dthrust_a = (a / thrust).transpose();
@@ -271,7 +283,7 @@ ctrl(
 	std::tie(er, Der_R, Der_Rd) = SO3error(R, Rd);
 
 	Vec ew = w - w_d;
-	Vec torque = -kr * er - kw * ew;
+	Vec torque = -(kr * er) - (kw * ew);
 	Action u {thrust, torque};
 
 	// controller chain rules
@@ -285,12 +297,14 @@ ctrl(
 
 	Eigen::Matrix<FLOAT, 3, TDIM> Der_th = Der_Rd * DRd_a * Da_th;
 
-	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_x = -kr * Der_x;
+	Eigen::Matrix<FLOAT, 3, XDIM> Dtorque_x = -(kr * Der_x);
 	Dtorque_x.block<3, 3>(0, 3 + 3 + 3 + 9) -= kw * I;
 
-	Eigen::Matrix<FLOAT, 3, TDIM> Dtorque_th = -kr * Der_th;
-	Dtorque_th.block<3, 1>(0, 3) -= er;
-	Dtorque_th.block<3, 1>(0, 4) -= ew;
+	Eigen::Matrix<FLOAT, 3, TDIM> Dtorque_th = -(kr * Der_th); // indirect part
+	Dtorque_th += (Eigen::Matrix<FLOAT, 3, TDIM>() <<
+		0, 0, 0, 0, 0, 0, -er[0],      0, -ew[0],      0,
+		0, 0, 0, 0, 0, 0, -er[1],      0, -ew[1],      0,
+		0, 0, 0, 0, 0, 0,      0, -er[2],      0, -ew[2]).finished();
 
 	Jux Du_x;
 	Du_x << Dthrust_x, Dtorque_x;
