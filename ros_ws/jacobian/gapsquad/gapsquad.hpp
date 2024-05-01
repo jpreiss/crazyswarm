@@ -137,10 +137,7 @@ std::tuple<Vec, Mat, Mat> cross(Vec const &a, Vec const &b)
 
 
 void dynamics(
-	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
-	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
-	FLOAT thrust, Vec const &torque, // input
-	FLOAT dt, // constants
+	State const &x, Target const &t, Action const &u, FLOAT const dt, // inputs
 	State &x_t, Jxx &Dx_x, Jxu &Dx_u // outputs
 	)
 {
@@ -148,31 +145,31 @@ void dynamics(
 	Mat I3 = Mat::Identity();
 	Mat99 I9 = Mat99::Identity();
 
-	Vec up = R.col(2);
-	Vec acc = thrust * up - g;
+	Vec up = x.R.col(2);
+	Vec acc = u.thrust * up - g;
 
 	Eigen::Matrix<FLOAT, 3, XDIM> Dacc_x;
 	Dacc_x.setZero();
 	// I3 wrt Z column of R
-	Dacc_x.block<3, 3>(0, 3 + 3 + 3 + 6) = thrust * I3;
+	Dacc_x.block<3, 3>(0, 3 + 3 + 3 + 6) = u.thrust * I3;
 
 	// Normally I would use symplectic Euler integration, but plain forward
 	// Euler gives simpler Jacobians.
 
-	x_t.ierr = ierr + dt * (p - p_d);
-	x_t.p = p + dt * v;
-	x_t.v = v + dt * acc;
-	x_t.R = R + dt * R * hat(w);
-	x_t.w = w + dt * torque;
+	x_t.ierr = x.ierr + dt * (x.p - t.p_d);
+	x_t.p = x.p + dt * x.v;
+	x_t.v = x.v + dt * acc;
+	x_t.R = x.R + dt * x.R * hat(x.w);
+	x_t.w = x.w + dt * u.torque;
 
 	// TODO: This became trivial after we went from angle state to rotation
 	// matrix -- condense some ops.
 	Mat39 Dvt_R = dt * Dacc_x.block<3, 9>(0, 9);
 
-	Mat99 DRt_R = I9 + dt * kroneckerProduct(hat(-w), I3);
+	Mat99 DRt_R = I9 + dt * kroneckerProduct(hat(-x.w), I3);
 
 	Vec Rx, Ry, Rz;
-	std::tie(Rx, Ry, Rz) = colsplit(R);
+	std::tie(Rx, Ry, Rz) = colsplit(x.R);
 
 	Mat93 DRt_w;
 	// shift operator constructor transposes everything by itself!
@@ -353,22 +350,16 @@ ctrl_wrap(
 }
 
 std::tuple<StateTuple, Jxx, Jxu>
-dynamics_wrap(
-	Vec const &ierr, Vec const &p, Vec const &v, Mat const &R, Vec const &w, // state
-	Vec const &p_d, Vec const &v_d, Vec const &a_d, FLOAT y_d, Vec const &w_d, // target
-	FLOAT thrust, Vec const &torque, // input
-	FLOAT dt // constants
-	)
+dynamics_wrap(StateTuple const &xt, TargetTuple const &tt, ActionTuple const &ut, FLOAT dt)
 {
 	std::tuple<StateTuple, Jxx, Jxu> output;
-	State s;
-	dynamics(
-		ierr, p, v, R, w,
-		p_d, v_d, a_d, y_d, w_d,
-		thrust, torque,
-		dt,
-		s, std::get<Jxx>(output), std::get<Jxu>(output)
-	);
-	std::get<StateTuple>(output) = std::make_tuple(s.ierr, s.p, s.v, s.R, s.w);
+
+	State const &x = reinterpret_cast<State const &>(xt);
+	Target const &t = reinterpret_cast<Target const &>(tt);
+	Action const &u = reinterpret_cast<Action const &>(ut);
+	State &xnext = reinterpret_cast<State &>(std::get<StateTuple>(output));
+
+	dynamics(x, t, u, dt, xnext, std::get<Jxx>(output), std::get<Jxu>(output));
+
 	return output;
 }

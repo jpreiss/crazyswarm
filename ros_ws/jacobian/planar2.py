@@ -186,7 +186,7 @@ def ctrl(x: State, xd: Target, th: Param, c: Const):
 
 def dynamics(x: State, xd: Target, u: Action, c: Const):
     xargs = state2args(x)
-    xrets, Jxx, Jxu = gapsquad.dynamics(*xargs, *xd, *u, c.dt)
+    xrets, Jxx, Jxu = gapsquad.dynamics(xargs, xd, u, c.dt)
     xt = rets2state(xrets)
     return xt, Jxx, Jxu
 
