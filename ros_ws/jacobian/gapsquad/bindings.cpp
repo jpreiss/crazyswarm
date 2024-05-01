@@ -22,6 +22,9 @@ static_assert(sizeof(StateTuple) == sizeof(State), "struct/tuple error");
 static_assert(sizeof(ActionTuple) == sizeof(Action), "struct/tuple error");
 static_assert(sizeof(TargetTuple) == sizeof(Target), "struct/tuple error");
 static_assert(sizeof(ParamTuple) == sizeof(Param), "struct/tuple error");
+static_assert(sizeof(State) == sizeof(FLOAT) * XDIM, "size error");
+static_assert(sizeof(Action) == sizeof(FLOAT) * UDIM, "size error");
+static_assert(sizeof(Param) == sizeof(FLOAT) * TDIM, "size error");
 
 std::tuple<ActionTuple, Jux, Jut>
 ctrl_wrap(StateTuple const &xt, TargetTuple const &tt, ParamTuple const &tht)
