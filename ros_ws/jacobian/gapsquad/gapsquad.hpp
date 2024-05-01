@@ -66,27 +66,24 @@ std::tuple<Vec, Mat39, Mat39> SO3error(Mat const &R, Mat const &Rd)
 	Vec Rdx, Rdy, Rdz;
 	std::tie(Rdx, Rdy, Rdz) = colsplit(Rd);
 	VecT Z = VecT::Zero();
-	Mat39 JR, JRd;
-	JR <<
+	Mat39 JR = 0.5 * (Mat39() <<
 		               Z,  Rdz.transpose(), -Rdy.transpose(),
 		-Rdz.transpose(),                Z,  Rdx.transpose(),
-		 Rdy.transpose(), -Rdx.transpose(),               Z;
-	JR *= 0.5;
-	JRd << 
+		 Rdy.transpose(), -Rdx.transpose(),               Z).finished();
+	Mat39 JRd = 0.5 * (Mat39() <<
 		              Z, -Rz.transpose(),  Ry.transpose(),
 		 Rz.transpose(),               Z, -Rx.transpose(),
-		-Ry.transpose(),  Rx.transpose(),              Z;
-	JRd *= 0.5;
+		-Ry.transpose(),  Rx.transpose(),              Z).finished();
 	return std::make_tuple(-err, -JR, -JRd);
 }
 
 Mat hat(Vec const &w)
 {
 	FLOAT x = w[0], y = w[1], z = w[2];
-	Mat m;
-	m << 0, -z,  y,
+	Mat m = (Mat() <<
+		 0, -z,  y,
 		 z,  0, -x,
-		-y,  x,  0;
+		-y,  x,  0).finished();
 	return m;
 }
 
@@ -172,13 +169,12 @@ dynamics(
 	// auto Z91 = Eigen::Matrix<FLOAT, 9, 1, Eigen::RowMajor>::Zero();
 	auto dt3 = dt * I3;
 
-	Jxx Dx_x;
-	Dx_x <<
+	Jxx Dx_x = (Jxx() <<
 		 I3, dt3, Z33,   Z39,   Z33,
 		Z33,  I3, dt3,   Z39,   Z33,
 		Z33, Z33,  I3, Dvt_R,   Z33,
 		Z93, Z93, Z93, DRt_R, DRt_w,
-		Z33, Z33, Z33,   Z39,    I3;
+		Z33, Z33, Z33,   Z39,    I3).finished();
 	// (Refers to Dx_x construction above.) Skipping Coriolis term that would
 	// make dw'/dw nonzero because it requires system ID of the inertia matrix,
 	// which we can otherwise skip. For the Crazyflie this term can be
