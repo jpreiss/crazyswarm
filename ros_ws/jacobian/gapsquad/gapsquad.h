@@ -18,18 +18,14 @@
 	#include <Eigen/Dense>
 	using Vec = Eigen::Matrix<FLOAT, 3, 1>;
 	using Mat = Eigen::Matrix<FLOAT, 3, 3, Eigen::RowMajor>;
-	using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
-	using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
-	using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
-	using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
 #else
 	#include "math3d.h"
 	typedef struct vec Vec;
 	typedef struct mat33 Mat;
-	typedef FLOAT[XDIM][XDIM] Jxx;
-	typedef FLOAT[XDIM][UDIM] Jxu;
-	typedef FLOAT[UDIM][TDIM] Jxt;
-	typedef FLOAT[UDIM][XDIM] Jux;
+	//typedef FLOAT[XDIM][XDIM] Jxx;
+	//typedef FLOAT[XDIM][UDIM] Jxu;
+	//typedef FLOAT[UDIM][TDIM] Jxt;
+	//typedef FLOAT[UDIM][XDIM] Jux;
 #endif
 
 struct State { Vec ierr; Vec p; Vec v; Mat R; Vec w; };

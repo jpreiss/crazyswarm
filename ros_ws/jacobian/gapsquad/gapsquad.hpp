@@ -6,6 +6,12 @@
 
 #include "gapsquad.h"
 
+using Jxx = Eigen::Matrix<FLOAT, XDIM, XDIM, Eigen::RowMajor>;
+using Jxu = Eigen::Matrix<FLOAT, XDIM, UDIM, Eigen::RowMajor>;
+using Jut = Eigen::Matrix<FLOAT, UDIM, TDIM, Eigen::RowMajor>;
+using Jux = Eigen::Matrix<FLOAT, UDIM, XDIM, Eigen::RowMajor>;
+using Gcx = Eigen::Matrix<FLOAT, 1, XDIM>;
+using Gcu = Eigen::Matrix<FLOAT, 1, UDIM>;
 
 FLOAT constexpr GRAV = 9.81;
 using Mat39 = Eigen::Matrix<FLOAT, 3, 9>;
