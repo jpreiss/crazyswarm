@@ -1,3 +1,7 @@
+#pragma once
+
+#include <stdint.h>
+
 // NOTE: FLOAT must resolve to a floating-point type. Add a `using` before
 // including this header, i.e.
 //
@@ -38,3 +42,34 @@ struct Param {
 struct CostParam {
 	FLOAT p; FLOAT v; FLOAT w; FLOAT thrust; FLOAT torque;
 };
+
+enum gaps_optimizer {
+	GAPS_OPT_DISABLE = 0,
+	GAPS_OPT_GRAD = 1,
+	GAPS_OPT_ADADELTA = 2,
+};
+
+struct GAPS
+{
+	// main state
+	Vec ierr;
+	struct Param theta;
+	FLOAT y[XDIM][TDIM];
+
+	// main params
+	struct CostParam cost_param;
+	float eta;
+	float damping;
+	uint8_t optimizer;
+
+	// diagnostics
+	FLOAT yabsmax;
+
+	// AdaDelta state
+	FLOAT grad_accum[TDIM];
+	FLOAT update_accum[TDIM];
+	// AdaDelta params
+	float ad_decay;
+	float ad_eps;
+};
+
