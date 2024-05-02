@@ -47,7 +47,12 @@ State = namedvec("State", "ierr p v R w", "3 3 3 9 3")
 Action = namedvec("Action", "thrust torque", "1 3")
 Target = namedvec("Target", "p_d v_d a_d y_d w_d", "3 3 3 1 3")
 Param = namedvec("Param", "ki_xy ki_z kp_xy kp_z kv_xy kv_z kr_xy kr_z kw_xy kw_z", "1 1 1 1 1 1 1 1 1 1")
+CostParam = namedvec("CostParam", "p v w thrust torque", "1 1 1 1 1")
 Const = namedvec("Const", "g m j dt", "1 1 3 1")
+
+
+def sqnorm(x):
+    return np.sum(x ** 2)
 
 
 # utilities since our Eigen fns take 3x3 matrix, not flat 9x1.
@@ -320,7 +325,45 @@ def finitediff_check(x, D, f, x_dim_str, y_dim_str):
             for err, mask, name in to_print:
                 print(f"{name}:")
                 print_with_highlight(err, mask, y_dim_str)
-            #assert False
+            assert False
+
+
+def cost(x: State, t: Target, u: Action, Q: CostParam):
+    """Returns: c, Dc_x, Dc_u."""
+    xargs = state2args(x)
+    c_bind, Dc_x_bind, Dc_u_bind = gapsquad.cost(xargs, t, u, Q)
+    assert Dc_x_bind.shape == (State.size,)
+    assert Dc_u_bind.shape == (Action.size,)
+    return c_bind, Dc_x_bind[None, :], Dc_u_bind[None, :]
+
+    perr = x.p - t.p_d
+    verr = x.v - t.v_d
+    werr = x.w - t.w_d
+
+    c = 0.5 * (
+        Q.p * sqnorm(perr)
+        + Q.v * sqnorm(verr)
+        + Q.w * sqnorm(werr)
+        + Q.thrust * (u.thrust * u.thrust)
+        + Q.torque * sqnorm(u.torque)
+    )
+    Dc_x = np.block([[
+        np.zeros((1, 3)),
+        Q.p * perr,
+        Q.v * verr,
+        np.zeros((1, 9)),
+        Q.w * werr,
+    ]])
+    Dc_u = np.block([[
+        Q.thrust * u.thrust,
+        Q.torque * u.torque,
+    ]])
+
+    assert np.allclose(c_bind, c)
+    assert np.allclose(Dc_x_bind, Dc_x)
+    assert np.allclose(Dc_u_bind, Dc_u)
+
+    return c, Dc_x, Dc_u
 
 
 def main():
@@ -338,9 +381,15 @@ def main():
 
         th = Param.from_arr(rng.uniform(0.1, 4, size=Param.size))
 
+        # These CostParams keep the cost output around the same scale as the
+        # ctrl and dynamics outputs. If the costs get bigger our finite
+        # difference error bounds don't apply anymore.
+        cp = CostParam.from_arr(10 ** rng.uniform(-3, -1, size=CostParam.size))
+
         u, Du_x, Du_th = ctrl(x, xd, th, const)
         xt, Dx_x, Dx_u = dynamics(x, xd, u, const)
-        print(f"{x = }\n{xd = }\n{th = }\n{u = }")
+        c, Dc_x, Dc_u = cost(x, xd, u, cp)
+        print(f"{x = }\n{xd = }\n{th = }\n{u = }\n{c = }")
 
         def ctrl_x2u(xa):
             x2 = State.from_arr(xa)
@@ -369,6 +418,20 @@ def main():
 
         print("dx/du")
         finitediff_check(u.to_arr(), Dx_u, dyn_u2x, Action.dim_str, State.dim_str)
+
+        def cost_x2c(xa):
+            x2 = State.from_arr(xa)
+            return np.array(cost(x2, xd, u, cp)[0])[None]
+
+        def cost_u2c(ua):
+            u2 = Action.from_arr(ua)
+            return np.array(cost(x, xd, u2, cp)[0])[None]
+
+        print("dc/dx")
+        finitediff_check(x.to_arr(), Dc_x, cost_x2c, State.dim_str, lambda i: "cost")
+
+        print("dc/du")
+        finitediff_check(u.to_arr(), Dc_u, cost_u2c, Action.dim_str, lambda i: "cost")
 
 
 if __name__ == "__main__":

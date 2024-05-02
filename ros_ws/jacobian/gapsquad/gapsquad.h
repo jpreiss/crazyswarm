@@ -35,3 +35,6 @@ struct Param {
 	FLOAT ki_xy; FLOAT ki_z; FLOAT kp_xy; FLOAT kp_z; FLOAT kv_xy; FLOAT kv_z; // position gains
 	FLOAT kr_xy; FLOAT kr_z; FLOAT kw_xy; FLOAT kw_z; // attitude gains
 };
+struct CostParam {
+	FLOAT p; FLOAT v; FLOAT w; FLOAT thrust; FLOAT torque;
+};

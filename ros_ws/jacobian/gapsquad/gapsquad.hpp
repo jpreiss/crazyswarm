@@ -178,6 +178,38 @@ bool allclose(S &&s, T &&t, FLOAT atol=1e-8, FLOAT rtol=1e-5)
 	return (a < allowed).all();
 }
 
+void cost(
+	State const &x, Target const &t, Action const &u, CostParam const &Q,  // inputs
+	FLOAT &c, Gcx &Dc_x, Gcu &Dc_u  // outputs
+	)
+{
+	VecT perr = (x.p - t.p_d).transpose();
+	VecT verr = (x.v - t.v_d).transpose();
+	VecT werr = (x.w - t.w_d).transpose();
+
+	// It doesn't make sense to have a cost on the attitude because the target
+	// doesn't include a specific target attitude. The only fully interpretable
+	// errors are tracking (position) and "jitteriness" (omega and/or torque).
+	// Velocity tracking is also marginal to penalize...
+
+	c = 0.5 * (
+		Q.p * perr.squaredNorm()
+		+ Q.v * verr.squaredNorm()
+		+ Q.w * werr.squaredNorm()
+		+ Q.thrust * (u.thrust * u.thrust)
+		+ Q.torque * u.torque.squaredNorm()
+	);
+	Dc_x <<
+		Eigen::Matrix<FLOAT, 1, 3>::Zero(),
+		Q.p * perr,
+		Q.v * verr,
+		Eigen::Matrix<FLOAT, 1, 9>::Zero(),
+		Q.w * werr;
+	Dc_u <<
+		Q.thrust * u.thrust,
+		Q.torque * u.torque.transpose();
+}
+
 void ctrl(
 	State const &x, Target const &t, Param const &th, // inputs
 	Action &u, Jux &Du_x, Jut &Du_th // outputs
