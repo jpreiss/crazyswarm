@@ -17,7 +17,8 @@ class Quadrotor:
 
     def __init__(self, state):
         # parameters (Crazyflie 2.0 quadrotor)
-        self.mass = 0.034  # kg
+        # NOTE: I made the mass lighter than the controller thinks it is
+        self.mass = 0.026  # kg
         # self.J = np.array([
         # 	[16.56,0.83,0.71],
         # 	[0.83,16.66,1.8],
@@ -49,6 +50,14 @@ class Quadrotor:
         self.drag_linear = forward_thrust / (TOP_SPEED ** 2)
 
         self.state = state
+        self.motor_rpm = np.zeros(4)
+        # TODO: get experimental sys id. The time in seconds it takes to reach
+        # (1 - 1/e) * (steady-state output) under a 0-1 step function input.
+        MOTOR_CHARTIME_RISE = 0.05
+        MOTOR_CHARTIME_FALL = 0.15
+        self.motor_alpha_rise = 1.0 / MOTOR_CHARTIME_RISE
+        self.motor_alpha_fall = 1.0 / MOTOR_CHARTIME_FALL
+
 
     def step(self, action, dt, f_a=np.zeros(3)):
 
@@ -60,7 +69,12 @@ class Quadrotor:
             force_in_newton = force_in_grams * 9.81 / 1000.0
             return np.maximum(force_in_newton, 0)
 
-        force = rpm_to_force(action.rpm)
+        delta_rpm = np.maximum(action.rpm, 0) - self.motor_rpm
+        alpha = np.where(delta_rpm > 0, self.motor_alpha_rise, self.motor_alpha_fall)
+        assert alpha.shape == (4,)
+        drpm_dt = alpha * delta_rpm
+        self.motor_rpm += dt * drpm_dt
+        force = rpm_to_force(self.motor_rpm)
 
         vel = self.state.vel
         linear_damping = -self.drag_linear * norm(self.state.vel) * self.state.vel
@@ -69,7 +83,7 @@ class Quadrotor:
         # compute next state
         eta = np.dot(self.B0, force)
         f_u = np.array([0, 0, eta[0]])
-        tau_u = np.array([eta[1], eta[2], eta[3]])
+        tau_u = eta[1:]
 
         # dynamics
         # dot{p} = v
