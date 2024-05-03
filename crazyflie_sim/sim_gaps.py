@@ -137,16 +137,16 @@ def main(adapt: bool):
         #cf.mellinger_control.i_range_xy *= 0.5
         cf.lee_control.gaps.theta.ki_xy = 0.0
         cf.lee_control.gaps.theta.ki_z = 0.0
-        cf.lee_control.gaps.theta.kp_xy = 0.0
+        cf.lee_control.gaps.theta.kp_xy = 2.0
         cf.lee_control.gaps.theta.kp_z = 7.0
-        cf.lee_control.gaps.theta.kv_xy = 0.0
+        cf.lee_control.gaps.theta.kv_xy = 1.0
         cf.lee_control.gaps.theta.kv_z = 4.0
-        cf.lee_control.gaps.theta.kr_xy = 0
-        cf.lee_control.gaps.theta.kr_z = 0
-        cf.lee_control.gaps.theta.kw_xy = 0
-        cf.lee_control.gaps.theta.kw_z = 0
+        cf.lee_control.gaps.theta.kr_xy = 19.5
+        cf.lee_control.gaps.theta.kr_z = 12.5
+        cf.lee_control.gaps.theta.kw_xy = 0 #3.15
+        cf.lee_control.gaps.theta.kw_z = 0 #3.15
 
-    cfs[1].lee_control.gaps.optimizer = 1  # TODO: enum
+    cfs[1].lee_control.gaps.optimizer = 0  # TODO: enum
     cfs[1].lee_control.gaps.eta = 1e-20
 
     results = [

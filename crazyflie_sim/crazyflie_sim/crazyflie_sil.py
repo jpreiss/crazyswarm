@@ -323,6 +323,9 @@ class CrazyflieSIL:
                 self.sensors,
                 self.state,
                 tick)
+            # TODO: why?
+            if not tick & 0x1:
+                self.control.torqueY *= -1
         else:
             self.controller(self.control, self.setpoint, self.sensors, self.state, tick)
         return self._fwcontrol_to_sim_data_types_action()
