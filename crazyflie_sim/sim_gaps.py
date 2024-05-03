@@ -16,7 +16,7 @@ def norm2(x):
 
 
 PARAM_ATTRS = [
-    p + s for p, s in it.product(["kp_", "kd_", "ki_"], ["xy", "z"])
+    p + s for p, s in it.product(["ki_", "kp_", "kv_", "kr_", "kw_"], ["xy", "z"])
 ]
 HZ = 500
 
@@ -48,7 +48,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     T = int(repeats * period * HZ) + 1
 
     rng = np.random.default_rng(0)
-    w = 1e-2 * rng.normal(size=(T, 3))
+    w = 0e-2 * rng.normal(size=(T, 3))
 
     sim.state.vel[2] = radius * omega
 
@@ -86,23 +86,27 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
         acc[2] = -radius * 2 * (omega ** 2) * np.sin(2 * omega * tsec)
         state_log.append(deepcopy(sim.state))
         target_log.append(State(pos=pos, vel=vel))
-        assert cf.mellinger_control.gaps_Qv == 0.0
+        #assert cf.mellinger_control.gaps_Qv == 0.0
         cost_log.append(
-            0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
+            0
+            #0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
         )
         cf.setState(sim.state)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
 
-        theta = [getattr(cf.mellinger_control.gaps, k) for k in PARAM_ATTRS]
+        theta = [getattr(cf.lee_control.gaps.theta, k) for k in PARAM_ATTRS]
         param_log.append(theta)
-        y_log.append(cf.mellinger_control.gaps.y)
+        #y_log.append(cf.mellinger_control.gaps.y)
+        y_log.append([0])
 
         action = cf.executeController()
+        print("action:")
+        print(action)
         action_arr = list(action.rpm) + [
-            cf.mellinger_control.cmd_roll,
-            cf.mellinger_control.cmd_pitch,
-            cf.mellinger_control.cmd_yaw,
-            cf.mellinger_control.cmd_thrust,
+            0, #cf.mellinger_control.cmd_roll,
+            0, #cf.mellinger_control.cmd_pitch,
+            0, #cf.mellinger_control.cmd_yaw,
+            0, #cf.mellinger_control.cmd_thrust,
         ]
         action_log.append(action_arr)
 
@@ -119,20 +123,31 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
 
 def main(adapt: bool):
     cfs = [
-        CrazyflieSIL("", np.zeros(3), "mellinger", lambda: 0)
+        CrazyflieSIL("", np.zeros(3), "lee", lambda: 0)
         for _ in range(2)
     ]
     for cf in cfs:
         # without this, the simulation is unstable
-        cf.mellinger_control.kd_omega_rp = 0
-        cf.mellinger_control.mass = Quadrotor(State()).mass
+        #cf.mellinger_control.kd_omega_rp = 0
+        cf.lee_control.mass = 1.275*Quadrotor(State()).mass
+        cf.lee_control.arm = 0.046
         # because it's annoying to extract the "u"
-        cf.mellinger_control.gaps_Qv = 0
-        cf.mellinger_control.gaps_R = 0
-        cf.mellinger_control.i_range_xy *= 0.5
+        #cf.mellinger_control.gaps_Qv = 0
+        #cf.mellinger_control.gaps_R = 0
+        #cf.mellinger_control.i_range_xy *= 0.5
+        cf.lee_control.gaps.theta.ki_xy = 0.0
+        cf.lee_control.gaps.theta.ki_z = 0.0
+        cf.lee_control.gaps.theta.kp_xy = 0.0
+        cf.lee_control.gaps.theta.kp_z = 7.0
+        cf.lee_control.gaps.theta.kv_xy = 0.0
+        cf.lee_control.gaps.theta.kv_z = 4.0
+        cf.lee_control.gaps.theta.kr_xy = 0
+        cf.lee_control.gaps.theta.kr_z = 0
+        cf.lee_control.gaps.theta.kw_xy = 0
+        cf.lee_control.gaps.theta.kw_z = 0
 
-    cfs[1].mellinger_control.gaps_enable = True
-    cfs[1].mellinger_control.gaps_eta = 1e-2
+    cfs[1].lee_control.gaps.optimizer = 1  # TODO: enum
+    cfs[1].lee_control.gaps.eta = 1e-20
 
     results = [
         rollout(Quadrotor(State()), cf, adapt=adapt)
@@ -223,7 +238,7 @@ def main(adapt: bool):
     fig_action.savefig(f"{prefix}_actions.pdf")
 
     y_log = np.stack(results[1][5])
-    assert y_log[0].shape == (9, 6)
+    #assert y_log[0].shape == (9, 6)
     fig_y, ax_y = subplots(1)
     maxes = [np.amax(y.flat) for y in y_log]
     ax_y.plot(t, maxes)
@@ -231,4 +246,4 @@ def main(adapt: bool):
 
 if __name__ == "__main__":
     main(adapt=False)
-    main(adapt=True)
+    #main(adapt=True)
