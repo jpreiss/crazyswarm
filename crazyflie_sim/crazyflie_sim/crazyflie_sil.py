@@ -96,6 +96,10 @@ class CrazyflieSIL:
         elif controller_name == 'brescianini':
             firm.controllerBrescianiniInit()
             self.controller = firm.controllerBrescianini
+        elif controller_name == 'lee':
+            self.lee_control = firm.controllerLee_t()
+            firm.controllerLeeInit(self.lee_control)
+            self.controller = firm.controllerLee
         else:
             raise ValueError('Unknown controller {}'.format(controller_name))
 
@@ -303,9 +307,7 @@ class CrazyflieSIL:
         tick = self.ticks
         self.ticks += 1
 
-        if self.controller_name != 'mellinger':
-            self.controller(self.control, self.setpoint, self.sensors, self.state, tick)
-        else:
+        if self.controller_name == 'mellinger':
             self.controller(
                 self.mellinger_control,
                 self.control,
@@ -313,6 +315,16 @@ class CrazyflieSIL:
                 self.sensors,
                 self.state,
                 tick)
+        elif self.controller_name == 'lee':
+            self.controller(
+                self.lee_control,
+                self.control,
+                self.setpoint,
+                self.sensors,
+                self.state,
+                tick)
+        else:
+            self.controller(self.control, self.setpoint, self.sensors, self.state, tick)
         return self._fwcontrol_to_sim_data_types_action()
 
     # 'private' methods
