@@ -48,7 +48,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     T = int(repeats * period * HZ) + 1
 
     rng = np.random.default_rng(0)
-    w = 0e-2 * rng.normal(size=(T, 3))
+    w = 1e-2 * rng.normal(size=(T, 3))
 
     sim.state.vel[2] = radius * omega
 
@@ -85,6 +85,10 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
         vel[2] = radius * 1 * omega * np.cos(2 * omega * tsec)
         acc[0] = -radius * (omega ** 2) * np.cos(omega * tsec)
         acc[2] = -radius * 2 * (omega ** 2) * np.sin(2 * omega * tsec)
+        if False:
+            pos[1] = pos[0]
+            vel[1] = vel[0]
+            acc[1] = acc[0]
         state_log.append(deepcopy(sim.state))
         target_log.append(State(pos=pos, vel=vel))
         #assert cf.mellinger_control.gaps_Qv == 0.0
@@ -130,25 +134,29 @@ def main(adapt: bool):
     for cf in cfs:
         # without this, the simulation is unstable
         #cf.mellinger_control.kd_omega_rp = 0
-        cf.lee_control.mass = 1.275*Quadrotor(State()).mass
+        cf.lee_control.mass = 1.25*Quadrotor(State()).mass
         cf.lee_control.arm = 0.046
-        # because it's annoying to extract the "u"
-        #cf.mellinger_control.gaps_Qv = 0
-        #cf.mellinger_control.gaps_R = 0
-        #cf.mellinger_control.i_range_xy *= 0.5
-        cf.lee_control.gaps.theta.ki_xy = 0.0
-        cf.lee_control.gaps.theta.ki_z = 0.0
+
+        cf.lee_control.gaps.cost_param.p = 1.0
+        cf.lee_control.gaps.cost_param.v = 0.01
+        cf.lee_control.gaps.cost_param.w = 0.01
+        cf.lee_control.gaps.cost_param.thrust = 0.00001
+        cf.lee_control.gaps.cost_param.torque = 0.001
+
+        cf.lee_control.gaps.theta.ki_xy = 0.2
+        cf.lee_control.gaps.theta.ki_z = 0.2
         cf.lee_control.gaps.theta.kp_xy = 2.0
         cf.lee_control.gaps.theta.kp_z = 7.0
         cf.lee_control.gaps.theta.kv_xy = 1.0
         cf.lee_control.gaps.theta.kv_z = 4.0
-        cf.lee_control.gaps.theta.kr_xy = 19.5
-        cf.lee_control.gaps.theta.kr_z = 12.5
-        cf.lee_control.gaps.theta.kw_xy = 0 #3.15
-        cf.lee_control.gaps.theta.kw_z = 0 #3.15
+        cf.lee_control.gaps.theta.kr_xy = 40
+        cf.lee_control.gaps.theta.kr_z = 10
+        cf.lee_control.gaps.theta.kw_xy = 3 #3.15
+        cf.lee_control.gaps.theta.kw_z = 3 #3.15
 
-    cfs[1].lee_control.gaps.optimizer = 0  # TODO: enum
-    cfs[1].lee_control.gaps.eta = 1e-20
+    cfs[1].lee_control.gaps.optimizer = 1  # TODO: enum
+    cfs[1].lee_control.gaps.damping = 0.9995
+    cfs[1].lee_control.gaps.eta = 3e-1
 
     results = [
         rollout(Quadrotor(State()), cf, adapt=adapt)
