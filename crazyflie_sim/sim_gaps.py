@@ -74,6 +74,7 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
     #plt.plot(w[:, 1])
     #plt.show()
 
+    prev_sum_cost = 0.0
 
     for t in range(T):
 
@@ -87,10 +88,6 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
         state_log.append(deepcopy(sim.state))
         target_log.append(State(pos=pos, vel=vel))
         #assert cf.mellinger_control.gaps_Qv == 0.0
-        cost_log.append(
-            0
-            #0.5 * cf.mellinger_control.gaps_Qx * norm2(pos - sim.state.pos)
-        )
         cf.setState(sim.state)
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
 
@@ -114,6 +111,10 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
         action2 = cf.executeController()
         assert action2.rpm == action.rpm
         ticks += 2
+
+        sum_cost = cf.lee_control.gaps.sum_cost
+        cost_log.append(sum_cost - prev_sum_cost)
+        prev_sum_cost = sum_cost
 
         f_disturb = w[t]
         sim.step(action, 1.0 / HZ, f_disturb)
