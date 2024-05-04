@@ -131,11 +131,12 @@ def main(adapt: bool):
         CrazyflieSIL("", np.zeros(3), "lee", lambda: 0)
         for _ in range(2)
     ]
+    Q_default = Quadrotor(State())
     for cf in cfs:
         # without this, the simulation is unstable
         #cf.mellinger_control.kd_omega_rp = 0
-        cf.lee_control.mass = 1.25*Quadrotor(State()).mass
-        cf.lee_control.arm = 0.046
+        cf.lee_control.mass = 1.25 * Q_default.mass
+        cf.lee_control.arm = Q_default.arm
 
         cf.lee_control.gaps.cost_param.p = 1.0
         cf.lee_control.gaps.cost_param.v = 0.01

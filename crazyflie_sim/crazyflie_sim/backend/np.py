@@ -18,7 +18,7 @@ class Quadrotor:
     def __init__(self, state):
         # parameters (Crazyflie 2.0 quadrotor)
         # NOTE: I made the mass lighter than the controller thinks it is
-        self.mass = 0.026  # kg
+        self.mass = 0.032  # kg
         # self.J = np.array([
         # 	[16.56,0.83,0.71],
         # 	[0.83,16.66,1.8],
@@ -29,6 +29,7 @@ class Quadrotor:
         # Note: we assume here that our control is forces
         arm_length = 0.046  # m
         arm = 0.707106781 * arm_length
+        self.arm = arm
         t2t = 0.006  # thrust-to-torque ratio
         self.B0 = np.array([
             [1, 1, 1, 1],
