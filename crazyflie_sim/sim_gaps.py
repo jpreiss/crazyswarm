@@ -143,6 +143,7 @@ def main(adapt: bool):
         cf.lee_control.gaps.cost_param.w = 0.01
         cf.lee_control.gaps.cost_param.thrust = 0.00001
         cf.lee_control.gaps.cost_param.torque = 0.001
+        cf.lee_control.gaps.cost_param.reg_L2 = 1e-5
 
         cf.lee_control.gaps.theta.ki_xy = 0.2
         cf.lee_control.gaps.theta.ki_z = 0.2
@@ -155,8 +156,8 @@ def main(adapt: bool):
         cf.lee_control.gaps.theta.kw_xy = 3 #3.15
         cf.lee_control.gaps.theta.kw_z = 3 #3.15
 
-    cfs[1].lee_control.gaps.optimizer = 1  # TODO: enum
-    cfs[1].lee_control.gaps.damping = 0.9995
+    cfs[1].lee_control.gaps.optimizer = 2  # TODO: enum
+    cfs[1].lee_control.gaps.damping = 1.0 #0.9999
     cfs[1].lee_control.gaps.eta = 3e-1
 
     results = [
