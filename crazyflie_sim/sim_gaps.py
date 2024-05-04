@@ -93,12 +93,12 @@ def rollout(sim: Quadrotor, cf: CrazyflieSIL, adapt: bool):
 
         theta = [getattr(cf.lee_control.gaps.theta, k) for k in PARAM_ATTRS]
         param_log.append(theta)
-        #y_log.append(cf.mellinger_control.gaps.y)
-        y_log.append([0])
+        #y_log.append([cf.lee_control.gaps.yabsmax])
+        y_log.append(cf.lee_control.gaps.y)
 
         action = cf.executeController()
-        print("action:")
-        print(action)
+        #print("action:")
+        #print(action)
         action_arr = list(action.rpm) + [
             0, #cf.mellinger_control.cmd_roll,
             0, #cf.mellinger_control.cmd_pitch,
@@ -240,10 +240,17 @@ def main(adapt: bool):
 
     y_log = np.stack(results[1][5])
     #assert y_log[0].shape == (9, 6)
-    fig_y, ax_y = subplots(1)
+    fig_ymax, ax_ymax = subplots(1)
     maxes = [np.amax(y.flat) for y in y_log]
-    ax_y.plot(t, maxes)
-    fig_y.savefig(f"{prefix}_ymax.pdf")
+    ax_ymax.plot(t, maxes)
+    fig_ymax.savefig(f"{prefix}_ymax.pdf")
+
+    fig_y, axs_y = plt.subplots(y_log.shape[1], y_log.shape[2], figsize=(20, 20), constrained_layout=True)
+    y_log = y_log.transpose([1, 2, 0])
+    for row, axrow in zip(y_log, axs_y):
+        for col, ax in zip(row, axrow):
+            ax.plot(col)
+    fig_y.savefig(f"{prefix}_y.pdf")
 
 if __name__ == "__main__":
     main(adapt=False)
