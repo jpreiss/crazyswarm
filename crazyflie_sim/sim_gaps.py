@@ -156,7 +156,8 @@ def main(adapt: bool):
         cf.lee_control.gaps.theta.kw_xy = 3 #3.15
         cf.lee_control.gaps.theta.kw_z = 3 #3.15
 
-    cfs[1].lee_control.gaps.optimizer = 2  # TODO: enum
+    cfs[1].lee_control.gaps.enable = 1
+    cfs[1].lee_control.gaps.optimizer = 1  # OGD - TODO: enum
     cfs[1].lee_control.gaps.damping = 1.0 #0.9999
     cfs[1].lee_control.gaps.eta = 3e-1
 
