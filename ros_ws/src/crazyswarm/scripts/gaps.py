@@ -19,7 +19,7 @@ def norm2(x):
 
 
 PARAMS = [
-    p + s for p, s in it.product(["kp_", "kd_", "ki_"], ["xy", "z"])
+    p + s for p, s in it.product(["ki_", "kp_", "kv_", "kr_", "kw_"], ["xy", "z"])
 ]
 HZ = 500
 
@@ -92,7 +92,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
 
         # TODO: encapsulate the ramp-down logic in the class too.
         if tramp > period and not param_set:
-            cf.setParam("gaps/enable", 1 if gaps else 0)
+            cf.setParam("gaps6DOF/enable", 1 if gaps else 0)
             param_set = True
 
         if tramp > (repeats + 1) * period and rampdown_begin is None:
@@ -161,42 +161,39 @@ def main(bad_init: bool = False):
 
     Z = 0.9
 
-    # params
-    GAPS_Qv = 0.0
-    GAPS_R = 0.0
-    GAPS_ETA = 1e-2
-    GAPS_DAMPING = 0.9995
-
     if bad_init:
         # detune
-        full_params = ["ctrlMel/" + p for p in PARAMS]
+        full_params = ["gaps6DOF/" + p for p in PARAMS]
         values = [cf.getParam(p) / 2.0 for p in full_params]
         cf.setParams(dict(zip(full_params, values)))
 
     if gaps:
         params = {
-            "gaps/Qv": GAPS_Qv,
-            "gaps/R": GAPS_R,
-            "gaps/eta": GAPS_ETA,
-            "gaps/damping": GAPS_DAMPING,
+            "gaps6DOF/Qp": 1.0,
+            "gaps6DOF/Qv": 0.0,
+            "gaps6DOF/Qw": 0.0,
+            "gaps6DOF/Rthrust": 0.0,
+            "gaps6DOF/Rtorque": 0.0,
+            "gaps6DOF/eta": 1e-2,
+            "gaps6DOF/damping": 0.9995,
         }
         if ada:
             # AdaDelta in general will reduce the rate, so we boost to make a
             # fair comparison.
             opt_params = {
-                "gaps/optimizer": 1,  # adadelta
-                "gaps/ad_eps": 1e-8,
-                "gaps/ad_decay": 0.95,
+                "gaps6DOF/optimizer": 1,  # adadelta
+                "gaps6DOF/ad_eps": 1e-8,
+                "gaps6DOF/ad_decay": 0.95,
             }
-            params["gaps/eta"] *= 2
+            params["gaps6DOF/eta"] *= 2
         else:
-            opt_params = { "gaps/optimizer": 0 }  # OGD
+            opt_params = { "gaps6DOF/optimizer": 0 }  # OGD
         params = {**params, **opt_params}
         cf.setParams(params)
 
     # Always disable in the beginning. rollout() will enable after we are up to
     # speed in the figure 8 loop.
-    cf.setParam("gaps/enable", 0)
+    cf.setParam("gaps6DOF/enable", 0)
 
     cf.takeoff(targetHeight=Z, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
