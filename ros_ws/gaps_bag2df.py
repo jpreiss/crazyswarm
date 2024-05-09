@@ -13,8 +13,8 @@ def convert(parampath, bagpath, outpath):
     logtopic = topics[0]
     vars_key = f"/crazyswarm_server/genericLogTopic_{logtopic}_Variables"
     vars = params[vars_key]
-    assert all(v.startswith("gaps.") for v in vars)
-    vars = [v[5:] for v in vars]
+    assert all(v.startswith("gaps6DOF.") for v in vars)
+    vars = [v[9:] for v in vars]
     gaps = params["/crazyswarm_server/gaps"]
     ada = params["/crazyswarm_server/ada"]
     # Bool indexing

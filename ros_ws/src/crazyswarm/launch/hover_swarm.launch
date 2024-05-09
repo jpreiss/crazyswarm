@@ -15,13 +15,22 @@
       genericLogTopics: ["gaps"]
       genericLogTopicFrequencies: [10]
       genericLogTopic_gaps_Variables: [
-        #"gaps.yabsmax",
-        "gaps.kp_xy",
-        "gaps.kp_z",
-        "gaps.kd_xy",
-        "gaps.kd_z",
-        "gaps.ki_xy",
-        "gaps.ki_z",
+        #"gaps6DOF.ix",
+        #"gaps6DOF.iy",
+        #"gaps6DOF.iz",
+        #"gaps6DOF.yabsmax",
+        #"gaps6DOF.max_row",
+        #"gaps6DOF.max_col",
+        "gaps6DOF.ki_xy",
+        "gaps6DOF.ki_z",
+        "gaps6DOF.kp_xy",
+        "gaps6DOF.kp_z",
+        "gaps6DOF.kv_xy",
+        "gaps6DOF.kv_z",
+        "gaps6DOF.kr_xy",
+        "gaps6DOF.kr_z",
+        "gaps6DOF.kw_xy",
+        #"gaps6DOF.kw_z", # TODO: 9-var limit: from firmware, or CSW? if CSW, then should fix.
       ]
 
       # firmware parameters for all drones (use crazyflieTypes.yaml to set per type, or
@@ -31,7 +40,7 @@
           enHighLevel: 1
         stabilizer:
           estimator: 2 # 1: complementary, 2: kalman
-          controller: 2 # 1: PID, 2: mellinger
+          controller: 5 # 1: PID, 2: mellinger, 5: lee
         ring:
           effect: 16 # 6: double spinner, 7: solid color, 16: packetRate
           solidBlue: 255 # if set to solid color
@@ -43,6 +52,34 @@
           extQuatStdDev: 0.5e-1
         kalman:
           resetEstimation: 1
+        gaps6DOF:
+          mass: 0.025
+
+          ki_z: 2.0
+          kp_z: 40.0
+          kv_z: 14.0
+
+          ki_xy: 5.0
+          kp_xy: 40.0
+          kv_xy: 20.0
+
+          kr_xy: 14
+          kw_xy: 4
+
+          kr_z: 2.5
+          kw_z: 1
+
+          enable: 0
+          eta: 1e-1
+          damping: 0.9999
+
+          Qp: 1e0
+          Qv: 0
+          Qw: 0
+          Rthrust: 1e-6
+          Rtorque: 1e-3
+          reg_L2: 1e-6
+
       # tracking
       motion_capture_type: "vicon" # one of none,vicon,optitrack,optitrack_closed_source,qualisys,vrpn
       object_tracking_type: "libobjecttracker" # one of motionCapture,libobjecttracker
@@ -72,7 +109,8 @@
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
 
-  <!-- <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_x" args="/cf2/log1/values[0]"/> -->
+  <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_x"
+    args="/cf21/gaps/values[0]:values[1]:values[2]:values[3]:values[4]:values[5]:values[6]:values[7]:values[8]" />
   <!-- <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_roll" args="/cf1/log1/values[2] /cf1/log1/values[3]"/> -->
   <node name="fan_switch" pkg="crazyswarm" type="fan_switch.py" output="screen">
   </node>

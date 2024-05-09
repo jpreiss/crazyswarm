@@ -169,13 +169,7 @@ def main(bad_init: bool = False):
 
     if gaps:
         params = {
-            "gaps6DOF/Qp": 1.0,
-            "gaps6DOF/Qv": 0.0,
-            "gaps6DOF/Qw": 0.0,
-            "gaps6DOF/Rthrust": 0.0,
-            "gaps6DOF/Rtorque": 0.0,
-            "gaps6DOF/eta": 1e-2,
-            "gaps6DOF/damping": 0.9995,
+            "gaps6DOF/eta": 1e-1,
         }
         if ada:
             # AdaDelta in general will reduce the rate, so we boost to make a
