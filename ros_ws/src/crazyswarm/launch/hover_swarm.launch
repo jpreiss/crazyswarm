@@ -40,7 +40,7 @@
           enHighLevel: 1
         stabilizer:
           estimator: 2 # 1: complementary, 2: kalman
-          controller: 5 # 1: PID, 2: mellinger, 5: lee
+          controller: 2 # 1: PID, 2: mellinger, 5: lee
         ring:
           effect: 16 # 6: double spinner, 7: solid color, 16: packetRate
           solidBlue: 255 # if set to solid color
@@ -53,24 +53,25 @@
         kalman:
           resetEstimation: 1
         gaps6DOF:
-          mass: 0.025
+          mass: 0.032
 
-          ki_z: 2.0
-          kp_z: 40.0
-          kv_z: 14.0
+          ki_z: 1.56
+          kp_z: 39.5
+          kv_z: 12.5
 
-          ki_xy: 4.0
-          kp_xy: 30.0
-          kv_xy: 15.0
+          ki_xy: 1.56
+          kp_xy: 12.5
+          kv_xy: 6.25
 
-          kr_xy: 14
-          kw_xy: 4
+          kr_xy: 830
+          kw_xy: 238
+          kwd_xy: 4.36
 
-          kr_z: 2.5
-          kw_z: 1
+          kr_z: 147
+          kw_z: 29.7
 
           enable: 0
-          eta: 1e-1
+          eta: 1e-2
           damping: 0.9999
 
           Qp: 1e0
