@@ -40,7 +40,7 @@
           enHighLevel: 1
         stabilizer:
           estimator: 2 # 1: complementary, 2: kalman
-          controller: 2 # 1: PID, 2: mellinger, 5: lee
+          controller: 5 # 1: PID, 2: mellinger, 5: lee
         ring:
           effect: 16 # 6: double spinner, 7: solid color, 16: packetRate
           solidBlue: 255 # if set to solid color
@@ -56,7 +56,7 @@
           mass: 0.032
 
           ki_z: 1.56
-          kp_z: 39.5
+          kp_z: 39.0
           kv_z: 12.5
 
           ki_xy: 1.56
@@ -65,7 +65,7 @@
 
           kr_xy: 830
           kw_xy: 238
-          kwd_xy: 4.36
+          kdw_xy: 2.36
 
           kr_z: 147
           kw_z: 29.7
