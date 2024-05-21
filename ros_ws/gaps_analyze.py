@@ -70,10 +70,15 @@ def plot_costs(dfs, prefix):
 
 
 def plot_params(dfs, prefix):
-    thetas = [f"{p}_{s}" for p, s in it.product(["ki", "kp", "kv", "kr", "kw"], ["xy", "z"])]
-    thetas = thetas[:-1]  # log packet limited to 9 vars
+    gaintypes = ["ki", "kp", "kv", "kr", "kw"]
+    axes = ["xy", "z"]
+    thetas = [f"{p}_{s}" for p, s in it.product(gaintypes, axes)]
+
     #dfs = [df.sample(frac=0.1) for df in dfs]
-    df = pd.concat(dfs).melt(id_vars=["kind", "t"], value_vars=thetas)
+    df = pd.concat(dfs)
+    cols = [k for k, v in df.items() if k in thetas]
+
+    df = df.melt(id_vars=["kind", "t"], value_vars=cols)
     grid = sns.relplot(
         df,
         kind="line",
