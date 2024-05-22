@@ -169,20 +169,17 @@ def main(bad_init: bool = False):
 
     if gaps:
         params = {
-            "gaps6DOF/eta": 1e-1,
+            "eta": 1e0,
+            "optimizer": 0,  # OGD
         }
         if ada:
-            # AdaDelta in general will reduce the rate, so we boost to make a
-            # fair comparison.
-            opt_params = {
-                "gaps6DOF/optimizer": 1,  # adadelta
-                "gaps6DOF/ad_eps": 1e-8,
-                "gaps6DOF/ad_decay": 0.95,
-            }
-            params["gaps6DOF/eta"] *= 2
-        else:
-            opt_params = { "gaps6DOF/optimizer": 0 }  # OGD
-        params = {**params, **opt_params}
+            # AdaDelta in general will reduce the rate, so we double it to make
+            # a fair comparison.
+            params["optimizer"] = 1  # adadelta
+            params["eta"] *= 2
+            params["ad_eps"] = 1e-8
+            params["ad_decay"] =  0.95
+        params = {"gaps6DOF/" + k: v for k, v in params.items()}
         cf.setParams(params)
 
     # Always disable in the beginning. rollout() will enable after we are up to
