@@ -10,22 +10,24 @@ import re
 import time
 import threading
 
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument(
 		"--configpath",
 		type=str,
-		default=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../launch/"),
+		default=os.path.join(SCRIPT_DIR, "../launch/"),
 		help="Path to the configuration *.yaml files")
 	parser.add_argument(
 		"--stm32Fw",
 		type=str,
-		default=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../crazyflie-firmware/build/cf2.bin"),
+		default=os.path.join(SCRIPT_DIR, "../../../../crazyflie-firmware/build/cf2.bin"),
 		help="Path to cf2.bin")
 	parser.add_argument(
 		"--nrf51Fw",
 		type=str,
-		default=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../crazyflie2-nrf-firmware/cf2_nrf.bin"),
+		default=os.path.join(SCRIPT_DIR, "../../../../crazyflie2-nrf-firmware/cf2_nrf.bin"),
 		help="Path to cf2_nrf.bin")
 	args = parser.parse_args()
 
@@ -80,7 +82,8 @@ if __name__ == '__main__':
 	# construct the main window
 	top = Tkinter.Tk()
 	top.title('Crazyflie Chooser')
-	img = Tkinter.PhotoImage(file="./chooser_icon.png")
+	icon_path = os.path.join(SCRIPT_DIR, "chooser_icon.png")
+	img = Tkinter.PhotoImage(file=icon_path)
 	top.wm_iconphoto(True, img)
 
 	# construct the frame containing the absolute-positioned checkboxes
