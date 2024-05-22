@@ -1,4 +1,5 @@
 import itertools as it
+from typing import Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -23,7 +24,8 @@ def plot_colorchanging(ax, x, y, *args, **kwargs):
 
 
 def shade_fan(df, ax):
-    fan_state = df["fan"].bfill().ffill()
+    fan_state = df["fan"] == 1
+    fan_state = fan_state.bfill().ffill()
     fan_state.iloc[-1] = False
     fan_toggles = np.flatnonzero(np.diff(fan_state) != 0)
     assert len(fan_toggles) & 0x1 == 0
@@ -51,14 +53,17 @@ def plot_fig8(dfs, prefix):
     fig_fig8.savefig(f"{prefix}_fig8.pdf")
 
 
-def plot_costs(dfs, prefix):
+def plot_costs(dfs: Sequence[pd.DataFrame], prefix):
 
     fig_cost, axs_cost = plt.subplots(3, 1, figsize=(8, 6), constrained_layout=True)
     ax_cost, ax_cum, ax_regret = axs_cost
 
-    # merge to interpolate at shared time values, then split again
-    dfcat = pd.concat(dfs).interpolate()
-    dfs = [df for _, df in dfcat.groupby("kind")]
+    # interpolate all DFs at the union of all time values.
+    dfs = [df.set_index("t") for df in dfs]
+    idx = dfs[0].index
+    for df in dfs[1:]:
+        idx = idx.union(df.index)
+    dfs = [df.reindex(idx).interpolate().reset_index() for df in dfs]
     for df in dfs[1:]:
         assert len(df) == len(dfs[0])
 
@@ -82,13 +87,14 @@ def plot_costs(dfs, prefix):
     fig_cost.savefig(f"{prefix}_cost.pdf")
 
 
-def plot_params(dfs, prefix):
+def plot_params(dfs: Sequence[pd.DataFrame], prefix):
     gaintypes = ["ki", "kp", "kv", "kr", "kw"]
     axes = ["xy", "z"]
     thetas = [f"{p}_{s}" for p, s in it.product(gaintypes, axes)]
 
     #dfs = [df.sample(frac=0.1) for df in dfs]
     df = pd.concat(dfs)
+
     cols = [k for k, v in df.items() if k in thetas]
 
     df = df.melt(id_vars=["kind", "t"], value_vars=cols)
