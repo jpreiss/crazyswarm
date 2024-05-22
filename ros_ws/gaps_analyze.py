@@ -52,20 +52,33 @@ def plot_fig8(dfs, prefix):
 
 
 def plot_costs(dfs, prefix):
+
     fig_cost, axs_cost = plt.subplots(3, 1, figsize=(8, 6), constrained_layout=True)
     ax_cost, ax_cum, ax_regret = axs_cost
-    dfcat = pd.concat([df.interpolate() for df in dfs]).reset_index()
+
+    # merge to interpolate at shared time values, then split again
+    dfcat = pd.concat(dfs).interpolate()
+    dfs = [df for _, df in dfcat.groupby("kind")]
+    for df in dfs[1:]:
+        assert len(df) == len(dfs[0])
+
+    # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
+    # need the dataframe split.
+    df_base = [df for df in dfs if df["kind"].iloc[0] == "default"]
+    assert len(df_base) == 1
+    df_base = df_base[0]
+    for df in dfs:
+        df["regret"] = df["cost_cum"] - df_base["cost_cum"]
+    dfcat = pd.concat(dfs).reset_index()
+
     sns.lineplot(dfcat, ax=ax_cost, x="t", y="cost", hue="kind")
     sns.lineplot(dfcat, ax=ax_cum, x="t", y="cost_cum", hue="kind")
-    if False:
-        # TODO: handle more than one "ours"
-        dfboth = pd.merge(*dfs, on="t", how="outer", sort=True, suffixes=names).interpolate()
-        r = dfboth["cost_cumGAPS"] - dfboth["cost_cumbaseline"]
-        dfboth["regret"] = r
-        sns.lineplot(dfboth, ax=ax_regret, x="t", y="regret")
-        for ax in axs_cost:
-            shade_fan(dfs[0], ax)
-            ax.legend()
+    sns.lineplot(dfcat, ax=ax_regret, x="t", y="regret", hue="kind")
+
+    for ax in axs_cost:
+        shade_fan(dfs[0], ax)
+        ax.legend()
+
     fig_cost.savefig(f"{prefix}_cost.pdf")
 
 
