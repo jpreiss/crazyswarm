@@ -80,6 +80,8 @@ if __name__ == '__main__':
 	# construct the main window
 	top = Tkinter.Tk()
 	top.title('Crazyflie Chooser')
+	img = Tkinter.PhotoImage(file="./chooser_icon.png")
+	top.wm_iconphoto(True, img)
 
 	# construct the frame containing the absolute-positioned checkboxes
 	width = xmax - xmin + 100 # account for checkbox + text width
