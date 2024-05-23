@@ -18,13 +18,17 @@ STYLES = [BASIC, BAD_INIT]
 TIME = "time (sec)"
 ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
-REGRET = "cost vs. default"
+REGRET = "``regret'' vs. default"
 
 
 def agg(series):
     if series.dtype == "object":
         return series.iloc[0]
     return series.mean()
+
+
+def normalize(x):
+    return x / np.linalg.norm(x)
 
 
 def plot_colorchanging(ax, x, y, maxtime, *args, **kwargs):
@@ -59,6 +63,29 @@ def shade_fan(df, ax):
         label = None
 
 
+def planar_traj_coords(planar_trajectory, updir):
+    # Note: trajectory must be EXACTLY planar. Not doing any least-squares.
+    n, d = planar_trajectory.shape
+    if len(updir) != d:
+        raise ValueError("dimensions don't match")
+    # make sure norm of cross product is meaningful
+    norm_threshold = 1e-1 * np.mean(planar_trajectory.flat)
+    normal = np.zeros(d)
+    while np.linalg.norm(normal) < norm_threshold:
+        a, b, c = planar_trajectory[np.random.choice(n, size=3)]
+        normal = np.cross(a - c, b - c)
+    if np.dot(normal, updir) < 0:
+        normal = -normal
+    normal = normalize(normal)
+    print("normal is", normal)
+    x = normalize(np.cross(updir, normal))
+    y = np.cross(normal, x)
+    M = np.stack([x, y])
+    assert M.shape == (2, d)
+    assert np.allclose(M @ M.T, np.eye(2))
+    return M
+
+
 def plot_fig8(dfs, style):
     width = len(dfs) * 3.5
     fig_fig8, axs_fig8 = plt.subplots(
@@ -66,21 +93,43 @@ def plot_fig8(dfs, style):
         figsize=(width, 2.4),
         constrained_layout=True,
     )
+
+    target_cols = ["target_" + c for c in "xyz"]
+    pos_cols = ["pos_" + c for c in "xyz"]
+    keep_cols = [TIME] + target_cols + pos_cols
+
+    transform = None
+
     for ax, df in zip(axs_fig8, dfs):
         name = df["optimizer"].iloc[0]
 
         # The 10ms interp is a bit slow, so only grab the columns we need.
         maxtime = df[TIME].max()
-        df = df[[TIME, "target_x", "target_z", "pos_x", "pos_z"]].copy()
+        df = df[keep_cols].copy()
         df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
         df = df.set_index(TIME)
         df = df.resample("20ms").apply(agg)
 
-        ax.plot(df["target_x"], df["target_z"], label="target", color="gray", linewidth=1)
+        target = np.stack([df[c] for c in target_cols], axis=1)
+        pos = np.stack([df[c] for c in pos_cols], axis=1)
+
+        if False:
+            # plot in the basis of the trajectory plane instead of x/z.
+            # currently disabled because it doesn't change the appearance much,
+            # and it's easier to explain x/z.
+            if transform is None:
+                transform = planar_traj_coords(target, updir=(0, 0, 1))
+                print("basis:", transform)
+                transform = np.eye(3)[[0, 2], :]
+            target = target @ transform.T
+            pos = pos @ transform.T
+            assert pos.shape[-1] == 2
+
+        ax.plot(*target.T, label="target", color="gray", linewidth=1)
 
         cmap = "coolwarm"
         line = plot_colorchanging(
-            ax, df["pos_x"], df["pos_z"], maxtime=maxtime,
+            ax, *pos.T, maxtime=maxtime,
             label=name, cmap=cmap, linewidth=2,
         )
         ax.set(title=name, xlabel="horizontal (m)", ylabel="vertical (m)")
