@@ -1,3 +1,4 @@
+import sys
 import itertools as it
 from typing import Sequence
 
@@ -6,6 +7,11 @@ from matplotlib.collections import LineCollection
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
+# styles
+BASIC = "basic"
+BAD_INIT = "bad_init"
+STYLES = [BASIC, BAD_INIT]
 
 
 def plot_colorchanging(ax, x, y, *args, **kwargs):
@@ -37,7 +43,7 @@ def shade_fan(df, ax):
         label = None
 
 
-def plot_fig8(dfs, prefix):
+def plot_fig8(dfs, style):
     height = len(dfs) * 2.25
     fig_fig8, axs_fig8 = plt.subplots(len(dfs), 1, figsize=(4, height), constrained_layout=True)
     for ax, df in zip(axs_fig8, dfs):
@@ -50,10 +56,10 @@ def plot_fig8(dfs, prefix):
         ax.axis("equal")
     cbar = fig_fig8.colorbar(line)
     cbar.ax.set_ylabel("time")
-    fig_fig8.savefig(f"{prefix}_fig8.pdf")
+    fig_fig8.savefig(f"{style}_fig8.pdf")
 
 
-def plot_costs(dfs: Sequence[pd.DataFrame], prefix):
+def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     fig_cost, axs_cost = plt.subplots(3, 1, figsize=(8, 6), constrained_layout=True)
     ax_cost, ax_cum, ax_regret = axs_cost
@@ -84,15 +90,15 @@ def plot_costs(dfs: Sequence[pd.DataFrame], prefix):
         shade_fan(dfs[0], ax)
         ax.legend()
 
-    fig_cost.savefig(f"{prefix}_cost.pdf")
+    fig_cost.savefig(f"{style}_cost.pdf")
 
 
-def plot_params(dfs: Sequence[pd.DataFrame], prefix):
+def plot_params(dfs: Sequence[pd.DataFrame], style):
     gaintypes = ["ki", "kp", "kv", "kr", "kw"]
     axes = ["xy", "z"]
     thetas = [f"{p}_{s}" for p, s in it.product(gaintypes, axes)]
 
-    #dfs = [df.sample(frac=0.1) for df in dfs]
+    dfs = [df.sample(frac=0.1) for df in dfs]
     df = pd.concat(dfs)
 
     cols = [k for k, v in df.items() if k in thetas]
@@ -116,12 +122,15 @@ def plot_params(dfs: Sequence[pd.DataFrame], prefix):
     for ax in grid.axes.flat:
         shade_fan(dfs[0], ax)
         ax.legend()
-    grid.savefig(f"{prefix}_params.pdf")
+    grid.savefig(f"{style}_params.pdf")
 
 
 def main():
+    style = sys.argv[1] if len(sys.argv) > 1 else BASIC
+    assert style in STYLES
+
     dfs = []
-    for mode in ["true_true", "true_false", "false_false"]:
+    for mode in ["true_false", "false_false"]:
         df = pd.read_json(f"/home/james/.ros/gaps_{mode}.json")
         df["t"] = df["t"] - df["t"][0]
         dfi = df.interpolate()
@@ -129,11 +138,10 @@ def main():
         df["cost"] = cost
         df["cost_cum"] = cost.cumsum()
         dfs.append(df)
-    prefix = "basic"
 
-    plot_fig8(dfs, prefix)
-    plot_costs(dfs, prefix)
-    plot_params(dfs, prefix)
+    plot_fig8(dfs, style)
+    plot_costs(dfs, style)
+    plot_params(dfs, style)
 
 
 if __name__ == "__main__":
