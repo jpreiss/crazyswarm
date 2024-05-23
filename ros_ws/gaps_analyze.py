@@ -98,6 +98,8 @@ def plot_params(dfs: Sequence[pd.DataFrame], prefix):
     cols = [k for k, v in df.items() if k in thetas]
 
     df = df.melt(id_vars=["kind", "t"], value_vars=cols)
+    df["value"] = np.exp(df["value"].to_numpy() / (1 << 12))
+
     grid = sns.relplot(
         df,
         kind="line",

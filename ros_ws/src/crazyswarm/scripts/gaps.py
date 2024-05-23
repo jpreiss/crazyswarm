@@ -59,16 +59,16 @@ class RampTime:
         return 1.0
 
 
-def rollout(cf, Z, timeHelper, gaps, diagonal: bool = False):
+def rollout(cf, Z, timeHelper, gaps, diagonal):
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
-    period = 4
+    period = 3.5
     xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
     ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
-    repeats = 12
-    fan_cycle = 6
+    repeats = 16
+    fan_cycle = 10
 
     # setpoint
     derivs = np.zeros((4, 3))
@@ -169,15 +169,15 @@ def main(bad_init: bool = False):
 
     if gaps:
         params = {
-            "eta": 1e0,
+            "eta": 1e-2,
             "optimizer": 0,  # OGD
         }
         if ada:
-            # AdaDelta in general will reduce the rate, so we double it to make
+            # AdaDelta in general will reduce the rate, so we raise it to make
             # a fair comparison.
             params["optimizer"] = 1  # adadelta
-            params["eta"] *= 2
-            params["ad_eps"] = 1e-8
+            #params["eta"] *= 2.0
+            params["ad_eps"] = 1e-7
             params["ad_decay"] =  0.95
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
         cf.setParams(params)
@@ -191,7 +191,7 @@ def main(bad_init: bool = False):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, Z, timeHelper, gaps=gaps)
+    rollout(cf, Z, timeHelper, gaps=gaps, diagonal=True)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)

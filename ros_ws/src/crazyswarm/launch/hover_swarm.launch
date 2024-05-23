@@ -53,33 +53,16 @@
         kalman:
           resetEstimation: 1
         gaps6DOF:
-          mass: 0.032
-
-          ki_z: 1.56
-          kp_z: 39.0
-          kv_z: 12.5
-
-          ki_xy: 1.56
-          kp_xy: 12.5
-          kv_xy: 6.25
-
-          kr_xy: 830
-          kw_xy: 238
-          kdw_xy: 2.36
-
-          kr_z: 147
-          kw_z: 29.7
-
           enable: 0
           eta: 1e-2
-          damping: 0.9999
+          damping: 1.0
 
           Qp: 1e0
-          Qv: 0
-          Qw: 0
-          Rthrust: 1e-6
-          Rtorque: 1e-3
-          reg_L2: 1e-6
+          Qv: 1e-4
+          Qw: 1e-3
+          Rthrust: 1e-8
+          Rtorque: 1e-8
+          reg_L2: 1e-10
 
       # tracking
       motion_capture_type: "vicon" # one of none,vicon,optitrack,optitrack_closed_source,qualisys,vrpn
@@ -110,8 +93,9 @@
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyswarm)/launch/test.rviz"/>
 
-  <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_x"
-    args="/cf21/gaps/values[0]:values[1]:values[2]:values[3]:values[4]:values[5]:values[6]:values[7]:values[8]" />
+    <!-- args="/cf21/gaps/values[0]:values[1]:values[2]:values[3]:values[4]:values[5]:values[6]:values[7]:values[8]" /> -->
+  <!-- <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_x"
+  args="/cf21/gaps/values[0]:values[1]:values[2]:values[3]:values[4]:values[5]:values[6]:values[7]:values[8]" /> -->
   <!-- <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot_roll" args="/cf1/log1/values[2] /cf1/log1/values[3]"/> -->
   <node name="fan_switch" pkg="crazyswarm" type="fan_switch.py" output="screen">
   </node>
