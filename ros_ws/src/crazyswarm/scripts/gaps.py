@@ -63,12 +63,12 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
-    period = 3.5
+    period = 4
     xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
     ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
-    repeats = 16
-    fan_cycle = 10
+    repeats = 8
+    fan_cycle = 4
 
     # setpoint
     derivs = np.zeros((4, 3))
@@ -164,12 +164,14 @@ def main(bad_init: bool = False):
     if bad_init:
         # detune
         full_params = ["gaps6DOF/" + p for p in PARAMS]
-        values = [cf.getParam(p) / 2.0 for p in full_params]
+        # log space params!
+        log_2 = float(np.log(2))
+        values = [cf.getParam(p) - log_2 for p in full_params]
         cf.setParams(dict(zip(full_params, values)))
 
     if gaps:
         params = {
-            "eta": 1e-2,
+            "eta": 2e-2,
             "optimizer": 0,  # OGD
         }
         if ada:
@@ -202,4 +204,4 @@ def main(bad_init: bool = False):
 
 
 if __name__ == "__main__":
-    main(bad_init=False)
+    main(bad_init=True)
