@@ -80,8 +80,9 @@ if __name__ == '__main__':
 	xmax, ymax = max(pixel_x), max(pixel_y)
 
 	# construct the main window
-	top = Tkinter.Tk()
-	top.title('Crazyflie Chooser')
+	name = "Crazyswarm Chooser"
+	top = Tkinter.Tk(className=name)
+	top.title(name)
 	icon_path = os.path.join(SCRIPT_DIR, "chooser_icon.png")
 	img = Tkinter.PhotoImage(file=icon_path)
 	top.wm_iconphoto(True, img)
