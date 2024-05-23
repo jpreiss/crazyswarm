@@ -58,8 +58,7 @@ def convert(parampath, bagpath, outpath):
                     records.append(dict(t=tsec, pos_x=trans.x, pos_y=trans.y, pos_z=trans.z))
     df = pd.DataFrame(records)
     df = df.groupby("t").first().reset_index()
-    df = df[df["t"] < df["t"].max() - 1]
-    df["kind"] = kind
+    df["optimizer"] = kind
     df.to_json(outpath)
 
 

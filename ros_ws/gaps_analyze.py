@@ -4,6 +4,7 @@ from typing import Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from matplotlib import patheffects
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -14,8 +15,10 @@ BAD_INIT = "bad_init"
 STYLES = [BASIC, BAD_INIT]
 
 # column names
-TIME = "$t$"
+TIME = "time (sec)"
 ERR = "tracking error (cm)"
+COST_CUM = "cumulative cost"
+REGRET = "cost vs. default"
 
 
 def agg(series):
@@ -24,19 +27,22 @@ def agg(series):
     return series.mean()
 
 
-def plot_colorchanging(ax, x, y, *args, **kwargs):
+def plot_colorchanging(ax, x, y, maxtime, *args, **kwargs):
     # Create a set of line segments so that we can color them individually
     # This creates the points as an N x 1 x 2 array so that we can stack points
     # together easily to get the segments. The segments array for line collection
     # needs to be (numlines) x (points per line) x 2 (for x and y)
     points = np.array([x, y]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    lc = LineCollection(segments, *args, **kwargs)
+    lc = LineCollection(
+        segments,
+        path_effects=[patheffects.Stroke(capstyle="round")],
+        *args, **kwargs
+    )
     # Set the values used for colormapping
-    lc.set_array(np.linspace(0, 1, len(x)))
+    lc.set_array(np.linspace(0, maxtime, len(x)))
     ax.add_collection(lc)
     return lc
-    #fig.colorbar(line, ax=axs[0])
 
 
 def shade_fan(df, ax):
@@ -63,43 +69,43 @@ def plot_fig8(dfs, style):
     for ax, df in zip(axs_fig8, dfs):
         name = df["optimizer"].iloc[0]
 
-        ax.plot(df["target_x"], df["target_z"], label="target", color="gray", linewidth=1)
-
         # The 10ms interp is a bit slow, so only grab the columns we need.
+        maxtime = df[TIME].max()
         df = df[[TIME, "target_x", "target_z", "pos_x", "pos_z"]].copy()
         df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
         df = df.set_index(TIME)
-        df = df.resample("10ms").apply(agg)
+        df = df.resample("20ms").apply(agg)
 
-        cmap = "viridis"
-        line = plot_colorchanging(ax, df["pos_x"], df["pos_z"], label=name, cmap=cmap, linewidth=2)
+        ax.plot(df["target_x"], df["target_z"], label="target", color="gray", linewidth=1)
+
+        cmap = "coolwarm"
+        line = plot_colorchanging(
+            ax, df["pos_x"], df["pos_z"], maxtime=maxtime,
+            label=name, cmap=cmap, linewidth=2,
+        )
         ax.set(title=name, xlabel="horizontal (m)", ylabel="vertical (m)")
         ax.axis("equal")
 
     cbar = fig_fig8.colorbar(line)
-    cbar.ax.set_ylabel("time")
+    cbar.ax.set_ylabel(TIME)
     fig_fig8.savefig(f"{style}_fig8.pdf")
 
 
 def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
+    # TODO: work on the layout of this figure + what should stay in final paper.
     fig_cost, axs_cost = plt.subplots(4, 1, figsize=(8, 8), constrained_layout=True)
     ax_cost, ax_err, ax_cum, ax_regret = axs_cost
 
-    # interpolate all DFs at the union of all time values.
+    # take downsampled means to smoot the plots a little.
     maxtime = max(df[TIME].max() for df in dfs)
-
-    interps = []
+    dfs_sampled = []
     for df in dfs:
-        df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
-        dfi = df.set_index(TIME)
+        df["timedelta"] = pd.to_timedelta(df[TIME], unit="seconds")
+        dfi = df.set_index("timedelta")
         dfr = dfi.resample("100ms").apply(agg)
-        interps.append(dfr)
-
-    dfs = interps
-
-    #for df in dfs[1:]:
-        #assert len(df) == len(dfs[0])
+        dfs_sampled.append(dfr)
+    dfs = dfs_sampled
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
@@ -107,13 +113,14 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
-        df["regret"] = df["cost_cum"] - df_base["cost_cum"]
+        df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
     sns.lineplot(dfcat, ax=ax_cost, x=TIME, y="cost", hue="optimizer")
     sns.lineplot(dfcat, ax=ax_err, x=TIME, y=ERR, hue="optimizer")
-    sns.lineplot(dfcat, ax=ax_cum, x=TIME, y="cost_cum", hue="optimizer")
-    sns.lineplot(dfcat, ax=ax_regret, x=TIME, y="regret", hue="optimizer")
+    sns.lineplot(dfcat, ax=ax_cum, x=TIME, y=COST_CUM, hue="optimizer")
+    sns.lineplot(dfcat, ax=ax_regret, x=TIME, y=REGRET, hue="optimizer")
+    # TODO: work on legends.
 
     if style != BAD_INIT:
         for ax in axs_cost:
@@ -124,6 +131,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
 
 def param_format(p):
+    """Converts code-style names for controller parameters to LaTeX."""
     if p[0] != "k" or p[2] != "_":
         return p
     kind = p[1]
@@ -137,7 +145,6 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     thetas = [f"{p}_{s}" for s, p in it.product(axes, gaintypes)]
     thetas_pretty = [param_format(p) for p in thetas]
 
-    dfs = [df.sample(frac=0.1) for df in dfs]
     df = pd.concat(dfs)
     df = df.rename(mapper=param_format, axis="columns")
 
@@ -166,7 +173,6 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
         bbox_to_anchor=(0.48, -0.1),
         ncols=2,
     )
-    grid.set(xticks=[0, 16, 32])
     if style != BAD_INIT:
         for ax in grid.axes.flat:
             shade_fan(dfs[0], ax)
@@ -184,17 +190,17 @@ def main():
         df[TIME] = df["t"] - df["t"][0]
         dfi = df.interpolate()
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
-        df["cost"] = cost
-        df[ERR] = np.sqrt(cost) * 100
-        df["cost_cum"] = cost.cumsum()
-        dfs.append(df)
+        dfi["cost"] = cost
+        dfi[ERR] = np.sqrt(cost) * 100
+        dfi[COST_CUM] = cost.cumsum()
+        dfs.append(dfi)
 
-    if False:
+    if True:
         plt.rcParams.update({"text.usetex": True, "font.size": 12})
 
     plot_fig8(dfs, style)
-    #plot_costs(dfs, style)
-    #plot_params(dfs, style)
+    plot_costs(dfs, style)
+    plot_params(dfs, style)
 
 
 if __name__ == "__main__":
