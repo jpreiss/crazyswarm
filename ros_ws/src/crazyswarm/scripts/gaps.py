@@ -107,11 +107,11 @@ def rollout(cf, Z, timeHelper, pub, diagonal):
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
-    period = 4
+    period = 6
     xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
     ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
-    repeats = 8
+    repeats = 4
     fan_cycle = 4
 
     # setpoint
@@ -165,7 +165,8 @@ def rollout(cf, Z, timeHelper, pub, diagonal):
         pub.fan(fan_on)
 
         derivs[:, 0] = xtraj(tsec, timestretch=1.0/tderiv)
-        derivs[:, 2] = ztraj(tsec, timestretch=1.0/tderiv)
+        derivs[:, 1] = ztraj(tsec, timestretch=1.0/tderiv)
+        derivs[:, 2] = 0
         if diagonal:
             derivs[:, 1] = -derivs[:, 2]
         pos, vel, acc, jerk = derivs
@@ -237,4 +238,4 @@ def main(bad_init: bool = False):
 
 
 if __name__ == "__main__":
-    main(bad_init=True)
+    main(bad_init=False)
