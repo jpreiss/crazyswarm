@@ -59,7 +59,51 @@ class RampTime:
         return 1.0
 
 
-def rollout(cf, Z, timeHelper, gaps, diagonal):
+# polymorphism so we can run in sim
+class ROSPub:
+    def __init__(self):
+        msgBool = std_msgs.msg.Bool
+        self.msg = msgBool()
+        self.pub_fan = rospy.Publisher("fan", msgBool, queue_size=1)
+        self.pub_trial = rospy.Publisher("trial", msgBool, queue_size=1)
+        self.tf_target = tf.TransformBroadcaster()
+        self.gaps = rospy.get_param("crazyswarm_server/gaps")
+        self.ada = rospy.get_param("crazyswarm_server/ada")
+
+    def fan(self, fan: bool):
+        self.msg = fan
+        self.pub_fan.publish(self.msg)
+
+    def trial(self, trial: bool):
+        self.msg = trial
+        self.pub_trial.publish(self.msg)
+
+    def target(self, pos):
+        self.tf_target.sendTransform(
+            pos,
+            [0, 0, 0, 1],  # ROS uses xyzw
+            time=rospy.Time.now(),
+            child="target",
+            parent="world",
+        )
+
+
+class SimPub:
+    def __init__(self):
+        self.gaps = False
+        self.ada = False
+
+    def fan(self, fan):
+        pass
+
+    def trial(self, trial):
+        pass
+
+    def target(self, pos):
+        pass
+
+
+def rollout(cf, Z, timeHelper, pub, diagonal):
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
@@ -76,15 +120,10 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
     angvel = np.zeros(3)
 
     # time ramp
-    t0 = timeHelper.time()
+    t0 = timeHelper.time() - 1e-6  # TODO: fix div/0 error in sim
     ramp = RampTime(1.5 * period, period)
     rampdown_begin = None
     param_set = False
-
-    tf_target = tf.TransformBroadcaster()
-    msg_bool = std_msgs.msg.Bool()
-    pub_fan = rospy.Publisher("fan", std_msgs.msg.Bool, queue_size=1)
-    pub_trial = rospy.Publisher("trial", std_msgs.msg.Bool, queue_size=1)
 
     while True:
         ttrue = timeHelper.time() - t0
@@ -92,7 +131,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
 
         # TODO: encapsulate the ramp-down logic in the class too.
         if tramp > period and not param_set:
-            cf.setParam("gaps6DOF/enable", 1 if gaps else 0)
+            cf.setParam("gaps6DOF/enable", 1 if pub.gaps else 0)
             param_set = True
 
         if tramp > (repeats + 1) * period and rampdown_begin is None:
@@ -112,8 +151,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
                 break
 
         trial = period < tsec < (repeats + 1) * period
-        msg_bool.data = trial
-        pub_trial.publish(msg_bool)
+        pub.trial(trial)
 
         # turn the fan on or off
         if trial:
@@ -124,8 +162,7 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
             fan_on = repeat % (2 * fan_cycle) >= comparator
         else:
             fan_on = False
-        msg_bool.data = fan_on
-        pub_fan.publish(msg_bool)
+        pub.fan(fan_on)
 
         derivs[:, 0] = xtraj(tsec, timestretch=1.0/tderiv)
         derivs[:, 2] = ztraj(tsec, timestretch=1.0/tderiv)
@@ -136,30 +173,26 @@ def rollout(cf, Z, timeHelper, gaps, diagonal):
         pos += init_pos
         angvel = compute_omega(acc, jerk, yaw=0, dyaw=0)
 
-        tf_target.sendTransform(
-            pos,
-            [0, 0, 0, 1],  # ROS uses xyzw
-            time=rospy.Time.now(),
-            child="target",
-            parent="world",
-        )
+        pub.target(pos)
+
         cf.cmdFullState(pos, vel, acc, yaw, angvel)
         timeHelper.sleepForRate(50)
 
 
 def main(bad_init: bool = False):
-    gaps = rospy.get_param("crazyswarm_server/gaps")
-    assert isinstance(gaps, bool)
-    print("gaps is", gaps)
-    ada = rospy.get_param("crazyswarm_server/ada")
-    assert isinstance(ada, bool)
-    print("ada is", ada)
-
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
 
     Z = 0.9
+
+    if swarm.sim:
+        pub = SimPub()
+    else:
+        pub = ROSPub()
+
+    print("gaps is", pub.gaps)
+    print("ada is", pub.ada)
 
     if bad_init:
         # detune
@@ -169,12 +202,12 @@ def main(bad_init: bool = False):
         values = [cf.getParam(p) - log_2 for p in full_params]
         cf.setParams(dict(zip(full_params, values)))
 
-    if gaps:
+    if pub.gaps:
         params = {
             "eta": 2e-2,
             "optimizer": 0,  # OGD
         }
-        if ada:
+        if pub.ada:
             # AdaDelta in general will reduce the rate, so we raise it to make
             # a fair comparison.
             params["optimizer"] = 1  # adadelta
@@ -193,7 +226,7 @@ def main(bad_init: bool = False):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, Z, timeHelper, gaps=gaps, diagonal=True)
+    rollout(cf, Z, timeHelper, pub, diagonal=False)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
