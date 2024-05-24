@@ -153,6 +153,8 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
         df["timedelta"] = pd.to_timedelta(df[TIME], unit="seconds")
         dfi = df.set_index("timedelta")
         dfr = dfi.resample("100ms").apply(agg)
+        # this used to be before resampling, but that was wrong!
+        dfr[COST_CUM] = (dfr["cost"] * dfr[TIME].diff()).cumsum()
         dfs_sampled.append(dfr)
     dfs = dfs_sampled
 
@@ -241,7 +243,6 @@ def main():
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
         dfi["cost"] = cost
         dfi[ERR] = np.sqrt(cost) * 100
-        dfi[COST_CUM] = cost.cumsum()
         dfs.append(dfi)
 
     if True:
