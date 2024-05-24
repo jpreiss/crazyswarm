@@ -94,9 +94,12 @@ class SimPub:
     def __init__(self):
         self.gaps = False
         self.ada = False
+        self.fan_state = False
 
     def fan(self, fan):
-        pass
+        if fan != self.fan_state:
+            print("turning fan", "on" if fan else "off")
+            self.fan_state = fan
 
     def trial(self, trial):
         pass
@@ -105,16 +108,13 @@ class SimPub:
         pass
 
 
-def rollout(cf, Z, timeHelper, pub, trajmode):
+def rollout(cf, Z, timeHelper, pub, trajmode, repeats, period, fan_cycle):
+    """The part of the flight where we use low-level commands."""
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
-    period = 6
     traj_major = TrigTrajectory.Cosine(amplitude=radius, period=period)
     traj_minor = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
-
-    repeats = 4
-    fan_cycle = 4
 
     # setpoint
     derivs = np.zeros((4, 3))
@@ -160,7 +160,7 @@ def rollout(cf, Z, timeHelper, pub, trajmode):
             repeat = int(tsec / period) - 1
             # If the cycle is slow enough, run the fan for 1 extra period (e.g.
             # 3 off, 5 on) because our fans take about 1 period to start up.
-            comparator = fan_cycle if fan_cycle <= 2 else fan_cycle - 1
+            comparator = fan_cycle #if fan_cycle <= 2 else fan_cycle - 1
             fan_on = repeat % (2 * fan_cycle) >= comparator
         else:
             fan_on = False
@@ -196,20 +196,39 @@ def rollout(cf, Z, timeHelper, pub, trajmode):
 def main():
     # Crazyswarm's inner parser must add help to get all params.
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument(
+    group = parser.add_argument_group("GAPS experiment params", "")
+    group.add_argument(
         "--detune",
         action="store_true",
-        help="start with a detuned low-gain controller",
+        help="start with a detuned low-gain controller.",
     )
-    parser.add_argument(
+    group.add_argument(
         "--traj",
         choices=[VERT, DIAG, HORIZ],
         default=VERT,
-        help="plane orientation of the figure-8",
+        help="plane orientation of the figure-8.",
+    )
+    group.add_argument(
+        "--repeats",
+        type=int,
+        default=4,
+        help="number of figure-8 cycles to fly.",
+    )
+    group.add_argument(
+        "--period",
+        type=int,
+        default=6,
+        help="duration of one figure-8 cycle.",
+    )
+    group.add_argument(
+        "--fan_cycle",
+        type=int,
+        default=4,
+        help="number of cycles in high/low phase of fan (so actually a half cycle).",
     )
     args, _ = parser.parse_known_args()
 
-    swarm = Crazyswarm()
+    swarm = Crazyswarm(parent_parser=parser)
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
 
@@ -241,8 +260,8 @@ def main():
         if pub.ada:
             # AdaDelta in general will reduce the rate, so we raise it to make
             # a fair comparison.
-            params["optimizer"] = 1  # adadelta
-            #params["eta"] *= 2.0
+            params["optimizer"] = 1
+            params["eta"] *= 2
             params["ad_eps"] = 1e-7
             params["ad_decay"] =  0.95
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
@@ -257,13 +276,14 @@ def main():
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, Z, timeHelper, pub, trajmode=args.traj)
+    rollout(cf, Z, timeHelper, pub, trajmode=args.traj,
+        repeats=args.repeats, period=args.period, fan_cycle=args.fan_cycle)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    cf.land(targetHeight=0.03, duration=Z+1.0)
+    cf.land(targetHeight=0.15, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
 
 
