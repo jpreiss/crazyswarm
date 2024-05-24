@@ -12,7 +12,8 @@ import seaborn as sns
 # styles
 BASIC = "basic"
 BAD_INIT = "bad_init"
-STYLES = [BASIC, BAD_INIT]
+FAN = "fan"
+STYLES = [BASIC, BAD_INIT, FAN]
 
 # column names
 TIME = "time (sec)"
@@ -87,7 +88,7 @@ def planar_traj_coords(planar_trajectory, updir):
 
 
 def plot_fig8(dfs, style):
-    width = len(dfs) * 3.5
+    width = len(dfs) * (1.5 if style == FAN else 3.5)
     fig_fig8, axs_fig8 = plt.subplots(
         1, len(dfs),
         figsize=(width, 2.4),
@@ -114,6 +115,7 @@ def plot_fig8(dfs, style):
         pos = np.stack([df[c] for c in pos_cols], axis=1)
 
         if False:
+            assert style != FAN  # TODO: handle plane normal
             # plot in the basis of the trajectory plane instead of x/z.
             # currently disabled because it doesn't change the appearance much,
             # and it's easier to explain x/z.
@@ -124,6 +126,13 @@ def plot_fig8(dfs, style):
             target = target @ transform.T
             pos = pos @ transform.T
             assert pos.shape[-1] == 2
+        else:
+            if style == FAN:
+                pos = pos[:, [1, -1]]
+                target = target[:, [1, -1]]
+            else:
+                pos = pos[:, [0, -1]]
+                target = target[:, [0, -1]]
 
         ax.plot(*target.T, label="target", color="gray", linewidth=1)
 
