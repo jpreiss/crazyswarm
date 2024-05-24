@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 from copy import copy, deepcopy
 import itertools as it
@@ -14,14 +15,15 @@ from pycrazyswarm import *
 from uav_trajectory import compute_omega, TrigTrajectory
 
 
-def norm2(x):
-    return np.sum(x ** 2)
-
-
 PARAMS = [
     p + s for p, s in it.product(["ki_", "kp_", "kv_", "kr_", "kw_"], ["xy", "z"])
 ]
 HZ = 500
+
+# trajectory modes
+VERT = "vert"
+DIAG = "diag"
+HORIZ = "horiz"
 
 
 class RampTime:
@@ -103,13 +105,13 @@ class SimPub:
         pass
 
 
-def rollout(cf, Z, timeHelper, pub, diagonal):
+def rollout(cf, Z, timeHelper, pub, trajmode):
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     assert Z > radius / 2 + 0.2
     period = 6
-    xtraj = TrigTrajectory.Cosine(amplitude=radius, period=period)
-    ztraj = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
+    traj_major = TrigTrajectory.Cosine(amplitude=radius, period=period)
+    traj_minor = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
     repeats = 4
     fan_cycle = 4
@@ -164,11 +166,22 @@ def rollout(cf, Z, timeHelper, pub, diagonal):
             fan_on = False
         pub.fan(fan_on)
 
-        derivs[:, 0] = xtraj(tsec, timestretch=1.0/tderiv)
-        derivs[:, 1] = ztraj(tsec, timestretch=1.0/tderiv)
-        derivs[:, 2] = 0
-        if diagonal:
-            derivs[:, 1] = -derivs[:, 2]
+        major = traj_major(tsec, timestretch=1.0/tderiv)
+        minor = traj_minor(tsec, timestretch=1.0/tderiv)
+
+        derivs[:, 0] = major
+        if trajmode == VERT:
+            derivs[:, 1] = 0
+            derivs[:, 2] = minor
+        elif trajmode == DIAG:
+            derivs[:, 1] = minor
+            derivs[:, 2] = minor
+        elif trajmode == HORIZ:
+            derivs[:, 1] = minor
+            derivs[:, 2] = 0
+        else:
+            raise ValueError()
+
         pos, vel, acc, jerk = derivs
         pos[0] -= radius
         pos += init_pos
@@ -180,7 +193,22 @@ def rollout(cf, Z, timeHelper, pub, diagonal):
         timeHelper.sleepForRate(50)
 
 
-def main(bad_init: bool = False):
+def main():
+    # Crazyswarm's inner parser must add help to get all params.
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--detune",
+        action="store_true",
+        help="start with a detuned low-gain controller",
+    )
+    parser.add_argument(
+        "--traj",
+        choices=[VERT, DIAG, HORIZ],
+        default=VERT,
+        help="plane orientation of the figure-8",
+    )
+    args, _ = parser.parse_known_args()
+
     swarm = Crazyswarm()
     timeHelper = swarm.timeHelper
     cf = swarm.allcfs.crazyflies[0]
@@ -195,7 +223,8 @@ def main(bad_init: bool = False):
     print("gaps is", pub.gaps)
     print("ada is", pub.ada)
 
-    if bad_init:
+    if args.detune and not swarm.sim:
+        print("Starting with detuned gains.")
         # detune
         full_params = ["gaps6DOF/" + p for p in PARAMS]
         # log space params!
@@ -203,6 +232,7 @@ def main(bad_init: bool = False):
         values = [cf.getParam(p) - log_2 for p in full_params]
         cf.setParams(dict(zip(full_params, values)))
 
+    # TODO: should be CLI args instead?
     if pub.gaps:
         params = {
             "eta": 2e-2,
@@ -227,7 +257,7 @@ def main(bad_init: bool = False):
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, Z, timeHelper, pub, diagonal=False)
+    rollout(cf, Z, timeHelper, pub, trajmode=args.traj)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
@@ -238,4 +268,4 @@ def main(bad_init: bool = False):
 
 
 if __name__ == "__main__":
-    main(bad_init=False)
+    main()
