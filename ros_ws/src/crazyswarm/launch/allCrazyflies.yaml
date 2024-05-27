@@ -1,5 +1,9 @@
 crazyflies:
 - channel: 70
   id: 21
-  initialPosition: [0.0, 0.0, 0.0]
+  initialPosition: [0.65, 0.0, 0.0]
+  type: defaultSingleMarker
+- channel: 70
+  id: 7
+  initialPosition: [-0.65, 0.0, 0.0]
   type: defaultSingleMarker
