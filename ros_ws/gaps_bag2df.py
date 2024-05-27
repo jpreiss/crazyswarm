@@ -21,8 +21,13 @@ def convert(parampath, configpath, bagpath, outpath):
     vars = params[vars_key]
     assert all(v.startswith("gaps6DOF.") for v in vars)
     vars = [v[9:] for v in vars]
-    gaps = config["gaps"]
-    kind = "GAPS" if gaps else "default"
+    if config["gaps"]:
+        kind = "GAPS"
+    else:
+        if config["detune"]:
+            kind = "detuned"
+        else:
+            kind = "default"
 
     # Use the "trial" topic to isolate the part where we measure performance.
     bag = rosbag.Bag(bagpath)

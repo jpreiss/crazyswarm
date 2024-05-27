@@ -241,13 +241,13 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
 
 def main():
-    style = sys.argv[1] if len(sys.argv) > 1 else BASIC
+    style = sys.argv[1]
     assert style in STYLES
 
+    paths = sys.argv[2:]
     dfs = []
-    # TODO: make args
-    for prefix in ["test_gaps", "test_nogaps"]:
-        df = pd.read_json(f"/home/james/.ros/{prefix}.json")
+    for path in paths:
+        df = pd.read_json(path)
         df[TIME] = df["t"] - df["t"][0]
         dfi = df.interpolate()
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
