@@ -26,6 +26,7 @@ VERT = "vert"
 DIAG = "diag"
 HORIZ = "horiz"
 CIRCLE = "circle"
+MODES = [VERT, DIAG, HORIZ, CIRCLE]
 
 
 class RampTime:
@@ -213,9 +214,9 @@ def main():
     )
     group.add_argument(
         "--traj",
-        choices=[VERT, DIAG, HORIZ],
+        choices=MODES,
         default=VERT,
-        help="plane orientation of the figure-8.",
+        help="trajectory type (fig-8 unless specified).",
     )
     group.add_argument(
         "--repeats",

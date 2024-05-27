@@ -1,5 +1,10 @@
 ROS:=$(HOME)/.ros
 
+weight_params.pdf: \
+$(ROS)/weight_default.json \
+$(ROS)/weight_gaps.json
+	python3 gaps_analyze.py weight $^
+
 bad_init_params.pdf: \
 $(ROS)/diag_bad_init_gaps.json \
 $(ROS)/diag_bad_init_nogaps.json \

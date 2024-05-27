@@ -13,7 +13,8 @@ import seaborn as sns
 BASIC = "basic"
 BAD_INIT = "bad_init"
 FAN = "fan"
-STYLES = [BASIC, BAD_INIT, FAN]
+WEIGHT = "weight"
+STYLES = [BASIC, BAD_INIT, FAN, WEIGHT]
 
 # column names
 TIME = "time (sec)"
