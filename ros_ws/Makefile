@@ -1,5 +1,10 @@
 ROS:=$(HOME)/.ros
 
+fan_params.pdf: \
+$(ROS)/fan_default.json \
+$(ROS)/fan_gaps.json
+	python3 gaps_analyze.py fan $^
+
 weight_params.pdf: \
 $(ROS)/weight_default.json \
 $(ROS)/weight_gaps.json

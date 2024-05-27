@@ -26,7 +26,8 @@ VERT = "vert"
 DIAG = "diag"
 HORIZ = "horiz"
 CIRCLE = "circle"
-MODES = [VERT, DIAG, HORIZ, CIRCLE]
+LINE = "line"
+MODES = [VERT, DIAG, HORIZ, CIRCLE, LINE]
 
 
 class RampTime:
@@ -184,6 +185,9 @@ def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan
         elif trajmode in [HORIZ, CIRCLE]:
             derivs[:, 1] = minor
             derivs[:, 2] = 0
+        elif trajmode == LINE:
+            derivs[:, 1] = 0
+            derivs[:, 2] = 0
         else:
             raise ValueError()
 
@@ -299,7 +303,8 @@ def main():
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    cf.land(targetHeight=0.05, duration=Z+1.0)
+    land_height = 0.2 if args.traj == LINE else 0.05
+    cf.land(targetHeight=land_height, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
 
 
