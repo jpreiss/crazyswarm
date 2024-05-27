@@ -46,10 +46,12 @@ class Crazyswarm:
             self.timeHelper = TimeHelper(args.vis, args.dt, args.writecsv, disturbanceSize=args.disturbance, maxVel=args.maxvel, videopath=args.video)
             self.allcfs = CrazyflieServer(self.timeHelper, crazyflies_yaml)
             atexit.register(self.timeHelper._atexit)
+            self.sim = True
         else:
             from .crazyflie import TimeHelper, CrazyflieServer
             self.allcfs = CrazyflieServer(crazyflies_yaml)
             self.timeHelper = TimeHelper()
+            self.sim = False
             if args.writecsv:
                 print("WARNING: writecsv argument ignored! This is only available in simulation.")
             if args.video:

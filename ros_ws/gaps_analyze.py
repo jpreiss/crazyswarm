@@ -245,8 +245,9 @@ def main():
     assert style in STYLES
 
     dfs = []
-    for mode in ["true_false", "false_false"]:
-        df = pd.read_json(f"/home/james/.ros/gaps_{mode}.json")
+    # TODO: make args
+    for prefix in ["test_gaps", "test_nogaps"]:
+        df = pd.read_json(f"/home/james/.ros/{prefix}.json")
         df[TIME] = df["t"] - df["t"][0]
         dfi = df.interpolate()
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")

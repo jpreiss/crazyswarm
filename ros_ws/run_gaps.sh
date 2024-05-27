@@ -1,5 +1,5 @@
 #!/bin/bash
 
-roslaunch crazyswarm hover_swarm.launch gaps:=$1 ada:=$2 --dump-params > ~/.ros/gaps_$1_$2_params.yaml
-roslaunch crazyswarm hover_swarm.launch gaps:=$1 ada:=$2
+roslaunch crazyswarm hover_swarm.launch prefix:=$1 --dump-params > ~/.ros/$1_params.yaml
+roslaunch crazyswarm hover_swarm.launch prefix:=$1
 

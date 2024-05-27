@@ -1,10 +1,11 @@
 import argparse
-from pathlib import Path
-from copy import copy, deepcopy
 import itertools as it
+import json
+from pathlib import Path
+import sys
 
-import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+import matplotlib.pyplot as plt
 import numpy as np
 
 import rospy
@@ -69,8 +70,7 @@ class ROSPub:
         self.pub_fan = rospy.Publisher("fan", msgBool, queue_size=1)
         self.pub_trial = rospy.Publisher("trial", msgBool, queue_size=1)
         self.tf_target = tf.TransformBroadcaster()
-        self.gaps = rospy.get_param("crazyswarm_server/gaps")
-        self.ada = rospy.get_param("crazyswarm_server/ada")
+        self.prefix = rospy.get_param("crazyswarm_server/prefix")
 
     def fan(self, fan: bool):
         self.msg = fan
@@ -92,9 +92,8 @@ class ROSPub:
 
 class SimPub:
     def __init__(self):
-        self.gaps = False
-        self.ada = False
         self.fan_state = False
+        self.prefix = "dummy"
 
     def fan(self, fan):
         if fan != self.fan_state:
@@ -108,11 +107,12 @@ class SimPub:
         pass
 
 
-def rollout(cf, Z, timeHelper, pub, trajmode, repeats, period, fan_cycle):
+def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan_cycle):
     """The part of the flight where we use low-level commands."""
     radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
-    assert Z > radius / 2 + 0.2
+    if trajmode != HORIZ:
+        assert Z > radius / 2 + 0.2
     traj_major = TrigTrajectory.Cosine(amplitude=radius, period=period)
     traj_minor = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
@@ -133,7 +133,7 @@ def rollout(cf, Z, timeHelper, pub, trajmode, repeats, period, fan_cycle):
 
         # TODO: encapsulate the ramp-down logic in the class too.
         if tramp > period and not param_set:
-            cf.setParam("gaps6DOF/enable", 1 if pub.gaps else 0)
+            cf.setParam("gaps6DOF/enable", 1 if gaps else 0)
             param_set = True
 
         if tramp > (repeats + 1) * period and rampdown_begin is None:
@@ -198,6 +198,11 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     group = parser.add_argument_group("GAPS experiment params", "")
     group.add_argument(
+        "--gaps",
+        action="store_true",
+        help="enable GAPS.",
+    )
+    group.add_argument(
         "--detune",
         action="store_true",
         help="start with a detuned low-gain controller.",
@@ -233,14 +238,21 @@ def main():
     cf = swarm.allcfs.crazyflies[0]
 
     Z = 0.9
+    radius = 0.75
 
     if swarm.sim:
         pub = SimPub()
     else:
         pub = ROSPub()
 
-    print("gaps is", pub.gaps)
-    print("ada is", pub.ada)
+    print("file prefix:", pub.prefix)
+    print("config:")
+    for k, v in vars(args).items():
+        print(f"    {k}: {v}")
+
+    path = Path.home() / ".ros" / (pub.prefix + "_config.json")
+    with open(path, "w") as f:
+        json.dump(vars(args), f)
 
     if args.detune and not swarm.sim:
         print("Starting with detuned gains.")
@@ -251,19 +263,11 @@ def main():
         values = [cf.getParam(p) - log_2 for p in full_params]
         cf.setParams(dict(zip(full_params, values)))
 
-    # TODO: should be CLI args instead?
-    if pub.gaps:
+    if args.gaps:
         params = {
             "eta": 2e-2,
             "optimizer": 0,  # OGD
         }
-        if pub.ada:
-            # AdaDelta in general will reduce the rate, so we raise it to make
-            # a fair comparison.
-            params["optimizer"] = 1
-            params["eta"] *= 2
-            params["ad_eps"] = 1e-7
-            params["ad_decay"] =  0.95
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
         cf.setParams(params)
 
@@ -276,7 +280,7 @@ def main():
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, Z, timeHelper, pub, trajmode=args.traj,
+    rollout(cf, args.gaps, Z, radius, timeHelper, pub, trajmode=args.traj,
         repeats=args.repeats, period=args.period, fan_cycle=args.fan_cycle)
 
     cf.notifySetpointsStop()
