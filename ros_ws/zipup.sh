@@ -1,4 +1,4 @@
 #!/bin/bash
 
-zip -j $1 ~/.ros/gaps_{true,false}* *.pdf
+zip -j $1 ~/.ros/*.{bag,yaml,json} *.pdf
 
