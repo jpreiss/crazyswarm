@@ -1,0 +1,4 @@
+# Ignore all extensions...
+*.*
+# ...except zip files.
+!*.zip
