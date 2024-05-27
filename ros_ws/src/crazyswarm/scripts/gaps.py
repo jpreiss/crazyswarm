@@ -25,6 +25,7 @@ HZ = 500
 VERT = "vert"
 DIAG = "diag"
 HORIZ = "horiz"
+CIRCLE = "circle"
 
 
 class RampTime:
@@ -114,7 +115,10 @@ def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan
     if trajmode != HORIZ:
         assert Z > radius / 2 + 0.2
     traj_major = TrigTrajectory.Cosine(amplitude=radius, period=period)
-    traj_minor = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
+    if trajmode == CIRCLE:
+        traj_minor = TrigTrajectory.Sine(amplitude=radius, period=period)
+    else:
+        traj_minor = TrigTrajectory.Sine(amplitude=radius/2, period=period/2)
 
     # setpoint
     derivs = np.zeros((4, 3))
@@ -174,9 +178,9 @@ def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan
             derivs[:, 1] = 0
             derivs[:, 2] = minor
         elif trajmode == DIAG:
-            derivs[:, 1] = minor
+            derivs[:, 1] = -minor
             derivs[:, 2] = minor
-        elif trajmode == HORIZ:
+        elif trajmode in [HORIZ, CIRCLE]:
             derivs[:, 1] = minor
             derivs[:, 2] = 0
         else:
@@ -228,8 +232,11 @@ def main():
     group.add_argument(
         "--fan_cycle",
         type=int,
-        default=4,
-        help="number of cycles in high/low phase of fan (so actually a half cycle).",
+        default=-1,
+        help=(
+            "number of cycles in high/low phase of fan "
+            "(so actually a half cycle). -1 means no fan."
+        ),
     )
     args, _ = parser.parse_known_args()
 
@@ -271,6 +278,10 @@ def main():
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
         cf.setParams(params)
 
+    fan_cycle = args.fan_cycle
+    if fan_cycle == -1:
+        fan_cycle = 2 * args.repeats * args.period + 1
+
     # Always disable in the beginning. rollout() will enable after we are up to
     # speed in the figure 8 loop.
     cf.setParam("gaps6DOF/enable", 0)
@@ -281,13 +292,13 @@ def main():
     timeHelper.sleep(2.0)
 
     rollout(cf, args.gaps, Z, radius, timeHelper, pub, trajmode=args.traj,
-        repeats=args.repeats, period=args.period, fan_cycle=args.fan_cycle)
+        repeats=args.repeats, period=args.period, fan_cycle=fan_cycle)
 
     cf.notifySetpointsStop()
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    cf.land(targetHeight=0.15, duration=Z+1.0)
+    cf.land(targetHeight=0.05, duration=Z+1.0)
     timeHelper.sleep(Z+2.0)
 
 

@@ -13,14 +13,10 @@
       genericLogTopics: ["gaps"]
       genericLogTopicFrequencies: [10]
       genericLogTopic_gaps_Variables: [
-        #"gaps6DOF.ix",
-        #"gaps6DOF.iy",
-        #"gaps6DOF.iz",
-        #"gaps6DOF.yabsmax",
-        #"gaps6DOF.max_row",
-        #"gaps6DOF.max_col",
-        #"gaps6DOF.ki_xy",
-        #"gaps6DOF.ki_z",
+        "gaps6DOF.yabsmax",
+        #"gaps6DOF.sum_cost",
+        "gaps6DOF.ki_xy",
+        "gaps6DOF.ki_z",
         "gaps6DOF.kp_xy",
         "gaps6DOF.kp_z",
         "gaps6DOF.kv_xy",
@@ -28,7 +24,7 @@
         "gaps6DOF.kr_xy",
         "gaps6DOF.kr_z",
         "gaps6DOF.kw_xy",
-        "gaps6DOF.kw_z", # TODO: 9-var limit: from firmware, or CSW? if CSW, then should fix.
+        "gaps6DOF.kw_z"
       ]
 
       # firmware parameters for all drones (use crazyflieTypes.yaml to set per type, or
