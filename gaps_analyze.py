@@ -1,3 +1,4 @@
+from pathlib import Path
 import sys
 import itertools as it
 from typing import Sequence
@@ -14,13 +15,16 @@ BASIC = "basic"
 BAD_INIT = "bad_init"
 FAN = "fan"
 WEIGHT = "weight"
-STYLES = [BASIC, BAD_INIT, FAN, WEIGHT]
+MULTI_PARAM = "multi_param"
+STYLES = [BASIC, BAD_INIT, FAN, WEIGHT, MULTI_PARAM]
 
 # column names
 TIME = "time (sec)"
 ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
 REGRET = "``regret'' vs. default"
+EXPERIMENT = "experiment"
+LOG_RATIO = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
 
 
 def agg(series):
@@ -60,9 +64,11 @@ def shade_fan(df, ax):
     # convert from index to time
     fan_toggles = df[TIME].iloc[fan_toggles].to_numpy()
     label = "fan on"
+    handle = None
     for pair in fan_toggles.reshape((-1, 2)):
-        ax.axvspan(*pair, alpha=0.2, color="black", linewidth=0, label=label)
+        handle = ax.axvspan(*pair, alpha=0.15, color="black", linewidth=0, label=label)
         label = None
+    return handle
 
 
 def planar_traj_coords(planar_trajectory, updir):
@@ -241,6 +247,79 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     grid.savefig(f"{style}_params.pdf")
 
 
+def compare_params(dfs: Sequence[pd.DataFrame], style):
+    gaintypes = ["ki", "kp", "kv", "kr", "kw"]
+    axes = ["xy", "z"]
+    thetas = list(it.product(axes, gaintypes))
+    thetas_pretty = [param_format(p) for p in thetas]
+    runtype = EXPERIMENT if style == MULTI_PARAM else "optimizer"
+
+    # clip to shortest df
+    tmax = min(df[TIME].max() for df in dfs)
+    dfs = [df[df[TIME] <= tmax] for df in dfs]
+
+    components = []
+    for df in dfs:
+        for ax, gaintype in thetas:
+            colname = f"{gaintype}_{ax}"
+            #df[theta] = df[theta] - df[theta].first()
+            th_fixedpoint = df[colname].to_numpy()
+            th = np.exp(th_fixedpoint / (1 << 12))
+            ratio = th / th[df[colname].first_valid_index()]
+            components.append(pd.DataFrame({
+                "param": gaintype,
+                "axis": ax,
+                runtype: df[runtype][0],
+                LOG_RATIO: np.log2(ratio),
+                TIME: df[TIME],
+            }))
+            print(components[-1])
+
+    df = pd.concat(components).reset_index()
+
+    sns.set_style("whitegrid")
+    grid = sns.relplot(
+        df,
+        kind="line",
+        col="axis",
+        hue="param",
+        row=runtype,
+        row_order=["weight", "fan"],
+        #col_order=thetas_pretty,
+        #col_order=thetas_pretty,
+        #col_wrap=5,
+        x=TIME,
+        #y="value",
+        y=LOG_RATIO,
+        height=2.5,
+        aspect=1.75,
+    )
+
+    if style != BAD_INIT:
+        for ax in grid.axes[1]:
+            handle = shade_fan(dfs[1], ax)  # index is a hack - should inspect df
+
+    grid.set_titles(template=r"\textbf{{{row_var}:\! {row_name}}}; \; {col_var}:\! {col_name}")
+    grid.set(xticks=np.linspace(0, 36, 7), xlim=[0, 36.05])
+    grid.set(yticks=[-0.5, 0, 0.5, 1.0, 1.5, 2.0], ylim=[-0.5, 2.01])
+    sns.move_legend(
+        grid,
+        loc="right",
+        bbox_to_anchor=(1.03, 0.6),
+        bbox_transform=grid.figure.transFigure
+    )
+
+    grid.axes[1, 1].legend(
+        title="fan state",
+        handles=[handle], labels=["on"],
+        frameon=False,
+        bbox_to_anchor=(1.03, 0.35),
+        bbox_transform=grid.figure.transFigure
+    )
+
+    grid.savefig(f"compare_params.pdf")
+
+
 def main():
     style = sys.argv[1]
     assert style in STYLES
@@ -254,14 +333,19 @@ def main():
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
         dfi["cost"] = cost
         dfi[ERR] = np.sqrt(cost) * 100
+        experiment = Path(path).stem.split("_")[0]
+        dfi[EXPERIMENT] = experiment
         dfs.append(dfi)
 
     if True:
         plt.rcParams.update({"text.usetex": True, "font.size": 12})
 
-    plot_fig8(dfs, style)
-    plot_costs(dfs, style)
-    plot_params(dfs, style)
+    if style == MULTI_PARAM:
+        compare_params(dfs, style)
+    else:
+        plot_params(dfs, style)
+        plot_fig8(dfs, style)
+        plot_costs(dfs, style)
 
 
 if __name__ == "__main__":
