@@ -197,6 +197,55 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     fig_cost.savefig(f"{style}_cost.pdf")
 
 
+def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
+
+    sns.set_style("whitegrid")
+
+    fig_cost, axs = plt.subplots(1, 2, figsize=(10, 2.25), constrained_layout=True)
+    ax_err, ax_regret = axs
+
+    # take downsampled means to smooth the plots a little.
+    maxtime = max(df[TIME].max() for df in dfs)
+    dfs_sampled = []
+    for df in dfs:
+        df["timedelta"] = pd.to_timedelta(df[TIME], unit="seconds")
+        dfi = df.set_index("timedelta")
+        dfr = dfi.resample("100ms").apply(agg)
+        # this used to be before resampling, but that was wrong!
+        dfr[COST_CUM] = (dfr["cost"] * dfr[TIME].diff()).cumsum()
+        dfs_sampled.append(dfr)
+    dfs = dfs_sampled
+
+    # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
+    # need the dataframe split.
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "default"]
+    assert len(df_base) == 1
+    df_base = df_base[0]
+    for df in dfs:
+        df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
+    dfcat = pd.concat(dfs).reset_index()
+
+    sns.lineplot(dfcat, ax=ax_err, x=TIME, y=ERR, hue="optimizer", legend=False)
+    sns.lineplot(dfcat, ax=ax_regret, x=TIME, y=REGRET, hue="optimizer")
+    sns.move_legend(ax_regret, "upper left", bbox_to_anchor=(1, 1), frameon=False)
+
+    _, emax = ax_err.get_ylim()
+    ax_err.set_ylim([0, emax])
+
+    ax_regret.set_ylim([-0.03, 0.6])
+
+    if style == BAD_INIT:
+        for ax in axs:
+            ax.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
+
+    if style != BAD_INIT:
+        for ax in axs:
+            shade_fan(dfs[0], ax)
+            ax.legend()
+
+    fig_cost.savefig(f"{style}_cost.pdf")
+
+
 def param_format(p):
     """Converts code-style names for controller parameters to LaTeX."""
     if p[0] != "k" or p[2] != "_":
@@ -343,9 +392,9 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        plot_params(dfs, style)
-        plot_fig8(dfs, style)
-        plot_costs(dfs, style)
+        #plot_params(dfs, style)
+        #plot_fig8(dfs, style)
+        plot_costs_v2(dfs, style)
 
 
 if __name__ == "__main__":
