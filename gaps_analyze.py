@@ -26,7 +26,7 @@ COST_CUM = "cumulative cost"
 REGRET = "``regret'' vs. default"
 EXPERIMENT = "experiment"
 LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
-LOG_RATIO_DEFAULT = r"$\log_2(\mathrm{value} / \mathrm{default})$"
+LOG_RATIO_DEFAULT = r"$\log_2$(value / default)"
 
 
 def agg(series):
@@ -243,8 +243,20 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
-    sns.lineplot(dfcat, ax=ax_err, x=TIME, y=ERR, hue="optimizer", legend=False)
-    sns.lineplot(dfcat, ax=ax_regret, x=TIME, y=REGRET, hue="optimizer")
+    style_order = ["GAPS", "detuned", "default"]
+    sizes = [2, 1, 1]
+    kwargs = dict(
+        data=dfcat,
+        x=TIME,
+        color="black",
+        style="optimizer",
+        style_order=style_order,
+        size="optimizer",
+        sizes={"GAPS": 2, "default": 1.0, "detuned": 1.0},
+    )
+
+    sns.lineplot(ax=ax_err, y=ERR, legend=False, **kwargs)
+    sns.lineplot(ax=ax_regret, y=REGRET, **kwargs)
     sns.move_legend(ax_regret, "upper left", bbox_to_anchor=(1, 1), frameon=False)
 
     _, emax = ax_err.get_ylim()
@@ -255,6 +267,8 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
     if style == BAD_INIT:
         for ax in axs:
             ax.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
+            # put GAPS in front
+            ax.lines[0].set(zorder=100)
 
     if style != BAD_INIT:
         for ax in axs:
@@ -419,9 +433,9 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        plot_params(dfs, style)
+        #plot_params(dfs, style)
         #plot_fig8(dfs, style)
-        #plot_costs_v2(dfs, style)
+        plot_costs_v2(dfs, style)
 
 
 if __name__ == "__main__":
