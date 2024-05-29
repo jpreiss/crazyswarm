@@ -25,7 +25,8 @@ ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
 REGRET = "``regret'' vs. default"
 EXPERIMENT = "experiment"
-LOG_RATIO = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
+LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
+LOG_RATIO_DEFAULT = r"$\log_2(\mathrm{value} / \mathrm{default})$"
 
 
 def agg(series):
@@ -273,44 +274,53 @@ def param_format(p):
 
 
 def plot_params(dfs: Sequence[pd.DataFrame], style):
-    gaintypes = ["ki", "kp", "kv", "kr", "kw"]
-    axes = ["xy", "z"]
-    thetas = [f"{p}_{s}" for s, p in it.product(axes, gaintypes)]
-    thetas_pretty = [param_format(p) for p in thetas]
 
-    df = pd.concat(dfs)
-    df = df.rename(mapper=param_format, axis="columns")
+    sns.set_style("whitegrid")
 
-    cols = [k for k, v in df.items() if k in thetas_pretty]
+    default_df = [df for df in dfs if df["optimizer"][0] == "default"]
+    assert len(default_df) == 1
+    default_df = default_df[0]
 
-    df = df.melt(id_vars=["optimizer", TIME], value_vars=cols, var_name="param")
-    df["value"] = np.exp(df["value"].to_numpy() / (1 << 12))
+    fig, axs = plt.subplots(1, 2, figsize=(9, 2.5), constrained_layout=True, sharey=True)
 
-    grid = sns.relplot(
-        df,
-        kind="line",
-        hue="optimizer",
-        col="param",
-        col_wrap=4,
-        x=TIME,
-        y="value",
-        height=1.75,
-        aspect=1.5,
-        facet_kws=dict(
-            sharey=False,
-        )
+    components = []
+    for df in dfs:
+        if df["optimizer"][0] in ["default", "detuned"]:
+            continue
+        for ax, axname in zip(axs, ["xy", "z"]):
+            ax.set_title(f"axis: {axname}", fontsize=12)
+            for gaintype in ["ki", "kp", "kv", "kr", "kw"]:
+                colname = f"{gaintype}_{axname}"
+                th_fixedpoint = df[colname].to_numpy()
+                th = np.exp(th_fixedpoint / (1 << 12))
+                default_vals = default_df[colname].dropna().unique()
+                assert len(default_vals) == 1
+                default = np.exp(default_vals[0] / (1 << 12))
+                ratio = th / default
+                ax.plot(df[TIME], np.log2(ratio), label=gaintype)
+
+    t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
+
+    if style == BAD_INIT:
+        for ax in axs:
+            ax.axhline(0, color="black", label="default", linestyle="--", zorder=1)
+            ax.axhline(-1, color="black", label="detuned", linestyle=":", zorder=1)
+            ax.set(xlabel=TIME, xlim=[t0, t1])
+        axs[0].set(ylabel=LOG_RATIO_DEFAULT)
+
+    axs[-1].legend(
+        frameon=False,
+        title="param",
+        loc="upper right",
+        bbox_to_anchor=(1.015, 1.0),
+        bbox_transform=fig.transFigure,
     )
-    sns.move_legend(
-        grid,
-        loc="lower center",
-        bbox_to_anchor=(0.48, -0.1),
-        ncols=2,
-    )
+
     if style != BAD_INIT:
-        for ax in grid.axes.flat:
+        for ax in axs:
             shade_fan(dfs[0], ax)
             ax.legend()
-    grid.savefig(f"{style}_params.pdf")
+    fig.savefig(f"{style}_params.pdf")
 
 
 def compare_params(dfs: Sequence[pd.DataFrame], style):
@@ -336,7 +346,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
                 "param": gaintype,
                 "axis": ax,
                 runtype: df[runtype][0],
-                LOG_RATIO: np.log2(ratio),
+                LOG_RATIO_INIT: np.log2(ratio),
                 TIME: df[TIME],
             }))
             print(components[-1])
@@ -356,7 +366,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
         #col_wrap=5,
         x=TIME,
         #y="value",
-        y=LOG_RATIO,
+        y=LOG_RATIO_INIT,
         height=2.5,
         aspect=1.75,
     )
@@ -409,8 +419,8 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        #plot_params(dfs, style)
-        plot_fig8(dfs, style)
+        plot_params(dfs, style)
+        #plot_fig8(dfs, style)
         #plot_costs_v2(dfs, style)
 
 
