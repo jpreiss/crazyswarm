@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 import sys
 import itertools as it
@@ -95,11 +96,15 @@ def planar_traj_coords(planar_trajectory, updir):
 
 
 def plot_fig8(dfs, style):
+
+    sns.set_style("whitegrid")
+
     width = len(dfs) * (1.5 if style == FAN else 3.5)
     fig_fig8, axs_fig8 = plt.subplots(
         1, len(dfs),
-        figsize=(width, 2.4),
+        figsize=(width, 2.7),
         constrained_layout=True,
+        sharey=True,
     )
 
     target_cols = ["target_" + c for c in "xyz"]
@@ -117,8 +122,9 @@ def plot_fig8(dfs, style):
         df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
         df = df.set_index(TIME)
         df = df.resample("20ms").apply(agg)
+        target_mask = df.index < datetime.timedelta(seconds=4.0)
 
-        target = np.stack([df[c] for c in target_cols], axis=1)
+        target = np.stack([df[c][target_mask] for c in target_cols], axis=1)
         pos = np.stack([df[c] for c in pos_cols], axis=1)
 
         if False:
@@ -138,10 +144,11 @@ def plot_fig8(dfs, style):
                 pos = pos[:, [1, -1]]
                 target = target[:, [1, -1]]
             else:
-                pos = pos[:, [0, -1]]
-                target = target[:, [0, -1]]
+                shift = -np.array([0.25, 0.9])
+                pos = pos[:, [0, -1]] + shift
+                target = target[:, [0, -1]] + shift
 
-        ax.plot(*target.T, label="target", color="gray", linewidth=1)
+        ax.plot(*target.T, label="target", linestyle=":", color="gray", linewidth=1.5)
 
         cmap = "coolwarm"
         line = plot_colorchanging(
@@ -150,6 +157,16 @@ def plot_fig8(dfs, style):
         )
         ax.set(title=name, xlabel="horizontal (m)", ylabel="vertical (m)")
         ax.axis("equal")
+        ax.set(xlim=[-0.8, 0.8])
+        ax.set_xticks([-0.5, 0, 0.5])
+        ax.set_xticks([-0.75, -0.25, 0.25, 0.75], minor=True)
+        ax.grid(True, which="both")
+        ax.set(ylim=[-0.55, 0.55], yticks=[-0.5, -0.25, 0, 0.25, 0.5])
+
+        if ax != axs_fig8[0]:
+            ax.set_ylabel(None)
+
+        sns.despine(ax=ax, left=True, bottom=True)
 
     cbar = fig_fig8.colorbar(line)
     cbar.ax.set_ylabel(TIME)
@@ -393,8 +410,8 @@ def main():
         compare_params(dfs, style)
     else:
         #plot_params(dfs, style)
-        #plot_fig8(dfs, style)
-        plot_costs_v2(dfs, style)
+        plot_fig8(dfs, style)
+        #plot_costs_v2(dfs, style)
 
 
 if __name__ == "__main__":
