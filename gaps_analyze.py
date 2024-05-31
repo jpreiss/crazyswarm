@@ -1,3 +1,4 @@
+from collections import defaultdict
 import datetime
 from pathlib import Path
 import sys
@@ -236,15 +237,14 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "default"]
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "none"]
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
-    style_order = ["GAPS", "detuned", "default"]
-    sizes = [2, 1, 1]
+    style_order = ["gaps", "singlepoint", "ogd", "detune", "none"]
     kwargs = dict(
         data=dfcat,
         x=TIME,
@@ -252,7 +252,7 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
         style="optimizer",
         style_order=style_order,
         size="optimizer",
-        sizes={"GAPS": 2, "default": 1.0, "detuned": 1.0},
+        #sizes=defaultdict(lambda: 2, none=1.0, detune=1.0),
     )
 
     sns.lineplot(ax=ax_err, y=ERR, legend=False, **kwargs)
@@ -291,50 +291,64 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    default_df = [df for df in dfs if df["optimizer"][0] == "default"]
+    default_df = [df for df in dfs if df["optimizer"][0] == "none"]
     assert len(default_df) == 1
     default_df = default_df[0]
 
-    fig, axs = plt.subplots(1, 2, figsize=(9, 2.5), constrained_layout=True, sharey=True)
+    #fig, axs = plt.subplots(1, 2, figsize=(9, 2.5), constrained_layout=True, sharey=True)
 
     components = []
+    styles = ["-", ":"]
     for df in dfs:
-        if df["optimizer"][0] in ["default", "detuned"]:
-            continue
-        for ax, axname in zip(axs, ["xy", "z"]):
-            ax.set_title(f"axis: {axname}", fontsize=12)
+        #for ax, axname in zip(axs, ["xy", "z"]):
+        for axname in ["xy", "z"]:
+            #ax.set_title(f"axis: {axname}", fontsize=12)
             for gaintype in ["ki", "kp", "kv", "kr", "kw"]:
                 colname = f"{gaintype}_{axname}"
                 th_fixedpoint = df[colname].to_numpy()
-                th = np.exp(th_fixedpoint / (1 << 12))
+                th = np.exp(th_fixedpoint / (1 << 11))
                 default_vals = default_df[colname].dropna().unique()
                 assert len(default_vals) == 1
-                default = np.exp(default_vals[0] / (1 << 12))
+                default = np.exp(default_vals[0] / (1 << 11))
                 ratio = th / default
-                ax.plot(df[TIME], np.log2(ratio), label=gaintype)
+                #ax.plot(df[TIME], np.log2(ratio), label=gaintype)
+                components.append(pd.DataFrame({
+                    "optimizer": df["optimizer"],
+                    "axis": axname,
+                    "parameter": gaintype,
+                    TIME: df[TIME],
+                    LOG_RATIO_DEFAULT: ratio,
+                }))
+    df = pd.concat(components).reset_index().sample(frac=0.01)
 
-    t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
+    if True:
+        grid = sns.relplot(
+            df,
+            kind="line",
+            x=TIME,
+            y=LOG_RATIO_DEFAULT,
+            style="optimizer",
+            col="axis",
+            hue="parameter",
+        )
+        grid.savefig(f"{style}_params.pdf")
+    else:
+        t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
 
-    if style == BAD_INIT:
-        for ax in axs:
-            ax.axhline(0, color="black", label="default", linestyle="--", zorder=1)
-            ax.axhline(-1, color="black", label="detuned", linestyle=":", zorder=1)
-            ax.set(xlabel=TIME, xlim=[t0, t1])
-        axs[0].set(ylabel=LOG_RATIO_DEFAULT)
+        axs[-1].legend(
+            frameon=False,
+            title="param",
+            loc="upper right",
+            bbox_to_anchor=(1.015, 1.0),
+            bbox_transform=fig.transFigure,
+        )
 
-    axs[-1].legend(
-        frameon=False,
-        title="param",
-        loc="upper right",
-        bbox_to_anchor=(1.015, 1.0),
-        bbox_transform=fig.transFigure,
-    )
+        if style != BAD_INIT:
+            for ax in axs:
+                shade_fan(dfs[0], ax)
+                ax.legend()
 
-    if style != BAD_INIT:
-        for ax in axs:
-            shade_fan(dfs[0], ax)
-            ax.legend()
-    fig.savefig(f"{style}_params.pdf")
+        fig.savefig(f"{style}_params.pdf")
 
 
 def compare_params(dfs: Sequence[pd.DataFrame], style):
@@ -354,7 +368,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
             colname = f"{gaintype}_{ax}"
             #df[theta] = df[theta] - df[theta].first()
             th_fixedpoint = df[colname].to_numpy()
-            th = np.exp(th_fixedpoint / (1 << 12))
+            th = np.exp(th_fixedpoint / (1 << 11))
             ratio = th / th[df[colname].first_valid_index()]
             components.append(pd.DataFrame({
                 "param": gaintype,
@@ -411,10 +425,10 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
 
 
 def main():
-    style = sys.argv[1]
+    style = sys.argv[-1]
     assert style in STYLES
 
-    paths = sys.argv[2:]
+    paths = sys.argv[1:-1]
     dfs = []
     for path in paths:
         df = pd.read_json(path)
@@ -433,8 +447,8 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        #plot_params(dfs, style)
-        #plot_fig8(dfs, style)
+        plot_params(dfs, style)
+        plot_fig8(dfs, style)
         plot_costs_v2(dfs, style)
 
 

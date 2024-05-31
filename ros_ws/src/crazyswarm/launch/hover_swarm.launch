@@ -48,7 +48,7 @@
           resetEstimation: 1
         gaps6DOF:
           enable: 0
-          eta: 1e-2
+          sp_ep_len: 1000
           damping: 1.0
 
           Qp: 1e0

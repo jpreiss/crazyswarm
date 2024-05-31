@@ -207,9 +207,11 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     group = parser.add_argument_group("GAPS experiment params", "")
     group.add_argument(
-        "--gaps",
-        action="store_true",
-        help="enable GAPS.",
+        "--optimizer",
+        type=str,
+        choices=["none", "gaps", "ogd", "singlepoint"],
+        default="none",
+        help="parameter optimization algorithm.",
     )
     group.add_argument(
         "--detune",
@@ -273,13 +275,21 @@ def main():
         # log space params!
         log_2 = float(np.log(2))
         values = [cf.getParam(p) - log_2 for p in full_params]
+        print("setting params to:")
+        print(list(zip(full_params, values)))
         cf.setParams(dict(zip(full_params, values)))
 
-    if args.gaps:
-        params = {
-            "eta": 2e-2,
-            "optimizer": 0,  # OGD
-        }
+    gaps = True
+    if args.optimizer == "gaps":
+        params = dict(optimizer=0, eta=2e-2)
+    elif args.optimizer == "ogd":
+        params = dict(optimizer=0, eta=4e-2, damping=0)
+    elif args.optimizer == "singlepoint":
+        params = dict(optimizer=2, eta=2e-3)
+    else:
+        gaps = False
+
+    if gaps:
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
         cf.setParams(params)
 
@@ -296,7 +306,7 @@ def main():
     cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
     timeHelper.sleep(2.0)
 
-    rollout(cf, args.gaps, Z, radius, timeHelper, pub, trajmode=args.traj,
+    rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode=args.traj,
         repeats=args.repeats, period=args.period, fan_cycle=fan_cycle)
 
     cf.notifySetpointsStop()
