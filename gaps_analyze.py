@@ -27,7 +27,12 @@ COST_CUM = "cumulative cost"
 REGRET = "``regret'' vs. default"
 EXPERIMENT = "experiment"
 LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
-LOG_RATIO_DEFAULT = r"$\log_2$(value / default)"
+RATIO_DEFAULT = r"value / default"
+
+# other constants
+GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
+AXES = ["xy", "z"]
+
 
 
 def agg(series):
@@ -300,10 +305,10 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     components = []
     styles = ["-", ":"]
     for df in dfs:
-        #for ax, axname in zip(axs, ["xy", "z"]):
-        for axname in ["xy", "z"]:
-            #ax.set_title(f"axis: {axname}", fontsize=12)
-            for gaintype in ["ki", "kp", "kv", "kr", "kw"]:
+        if df["optimizer"][0] in ["none", "detune"]:
+            continue
+        for axname in AXES:
+            for gaintype in GAINTYPES:
                 colname = f"{gaintype}_{axname}"
                 th_fixedpoint = df[colname].to_numpy()
                 th = np.exp(th_fixedpoint / (1 << 11))
@@ -311,13 +316,12 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 assert len(default_vals) == 1
                 default = np.exp(default_vals[0] / (1 << 11))
                 ratio = th / default
-                #ax.plot(df[TIME], np.log2(ratio), label=gaintype)
                 components.append(pd.DataFrame({
                     "optimizer": df["optimizer"],
                     "axis": axname,
                     "parameter": gaintype,
                     TIME: df[TIME],
-                    LOG_RATIO_DEFAULT: ratio,
+                    RATIO_DEFAULT: ratio,
                 }))
     df = pd.concat(components).reset_index().sample(frac=0.01)
 
@@ -326,11 +330,22 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             df,
             kind="line",
             x=TIME,
-            y=LOG_RATIO_DEFAULT,
-            style="optimizer",
-            col="axis",
+            y=RATIO_DEFAULT,
+            col="optimizer",
+            col_order=["gaps", "singlepoint", "ogd"],
+            row="axis",
+            row_order=AXES,
             hue="parameter",
+            hue_order=GAINTYPES,
+            height=2.75,
+            aspect=1.25,
         )
+        for ax in grid.axes.flat:
+            h1 = ax.axhline(1.0, color="black")
+            h2 = ax.axhline(0.5, color="black", linestyle=":")
+            handles = [h1, h2]
+        labels =["default", "detuned"]
+
         grid.savefig(f"{style}_params.pdf")
     else:
         t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
