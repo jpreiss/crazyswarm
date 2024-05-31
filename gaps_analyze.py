@@ -200,7 +200,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "default"]
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "baseline"]
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
@@ -228,6 +228,14 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
     fig_cost, axs = plt.subplots(1, 2, figsize=(10, 2.25), constrained_layout=True)
     ax_err, ax_regret = axs
 
+    optimizer_styles = dict(
+        gaps=dict(color="black", linewidth=2),
+        baseline=dict(color=(0, 0.8, 0.4), linewidth=1.25),
+        detune=dict(color=(1.0, 0.2, 0.4), linewidth=1.25),
+        singlepoint=dict(color="black", linestyle=(0, (1, 0.5)), linewidth=1.5),
+        ogd=dict(color="black", linestyle=(0, (3, 1.0)), linewidth=1.5),
+    )
+
     # take downsampled means to smooth the plots a little.
     maxtime = max(df[TIME].max() for df in dfs)
     dfs_sampled = []
@@ -242,27 +250,26 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "none"]
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "baseline"]
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
-    style_order = ["gaps", "singlepoint", "ogd", "detune", "none"]
-    kwargs = dict(
-        data=dfcat,
-        x=TIME,
-        color="black",
-        style="optimizer",
-        style_order=style_order,
-        size="optimizer",
-        #sizes=defaultdict(lambda: 2, none=1.0, detune=1.0),
-    )
+    opt_order = ["gaps", "singlepoint", "ogd", "detune", "baseline"]
+    for opt in opt_order:
+        df = dfcat[dfcat["optimizer"] == opt]
+        ax_regret.plot(df[TIME], df[REGRET], label=opt, **optimizer_styles[opt])
+        if opt not in ["gaps", "detune", "baseline"]:
+            continue
+        ax_err.plot(df[TIME], df[ERR], label=opt, **optimizer_styles[opt])
 
-    sns.lineplot(ax=ax_err, y=ERR, legend=False, **kwargs)
-    sns.lineplot(ax=ax_regret, y=REGRET, **kwargs)
-    sns.move_legend(ax_regret, "upper left", bbox_to_anchor=(1, 1), frameon=False)
+    for ax in axs:
+        ax.set(xlabel=TIME)
+    ax_err.set(ylabel=ERR)
+    ax_regret.set(ylabel=REGRET)
+    ax_regret.legend(loc="center left", bbox_to_anchor=(1, 0.5), title="optimizer", frameon=False)
 
     _, emax = ax_err.get_ylim()
     ax_err.set_ylim([0, emax])
@@ -344,7 +351,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             h1 = ax.axhline(1.0, color="black")
             h2 = ax.axhline(0.5, color="black", linestyle=":")
             handles = [h1, h2]
-        labels =["default", "detuned"]
+        labels =["baseline", "detuned"]
 
         grid.savefig(f"{style}_params.pdf")
     else:
@@ -462,8 +469,8 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        plot_params(dfs, style)
-        plot_fig8(dfs, style)
+        #plot_params(dfs, style)
+        #plot_fig8(dfs, style)
         plot_costs_v2(dfs, style)
 
 
