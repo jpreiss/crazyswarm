@@ -21,7 +21,12 @@ def convert(parampath, configpath, bagpath, outpath):
     vars = params[vars_key]
     assert all(v.startswith("gaps6DOF.") for v in vars)
     vars = [v[9:] for v in vars]
-    kind = config["optimizer"]
+
+    try:
+        kind = config["optimizer"]
+    except KeyError:
+        # old format, before multiple optimizers
+        kind = "gaps" if config["gaps"] else "none"
     if kind == "none":
         kind = "detune" if config["detune"] else "baseline"
 

@@ -233,6 +233,7 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
         baseline=dict(color=(0, 0.8, 0.4), linewidth=1.25),
         detune=dict(color=(1.0, 0.2, 0.4), linewidth=1.25),
         singlepoint=dict(color="black", linestyle=(0, (1, 0.5)), linewidth=1.5),
+        episodic=dict(color=(0, 0.3, 0.9), linestyle=(0, (1, 0.5, 3, 0.5)), linewidth=1.5),
         ogd=dict(color="black", linestyle=(0, (3, 1.0)), linewidth=1.5),
     )
 
@@ -257,35 +258,40 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
-    opt_order = ["gaps", "singlepoint", "ogd", "detune", "baseline"]
-    for opt in opt_order:
+    opt_order = ["gaps", "singlepoint", "episodic", "ogd", "detune", "baseline"]
+    for i, opt in enumerate(opt_order):
+        z = 1000 - i  # on top of grid, etc
         df = dfcat[dfcat["optimizer"] == opt]
-        ax_regret.plot(df[TIME], df[REGRET], label=opt, **optimizer_styles[opt])
+        ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
         if opt not in ["gaps", "detune", "baseline"]:
             continue
-        ax_err.plot(df[TIME], df[ERR], label=opt, **optimizer_styles[opt])
+        ax_err.plot(df[TIME], df[ERR], label=opt, zorder=z, **optimizer_styles[opt])
 
     for ax in axs:
         ax.set(xlabel=TIME)
     ax_err.set(ylabel=ERR)
     ax_regret.set(ylabel=REGRET)
-    ax_regret.legend(loc="center left", bbox_to_anchor=(1, 0.5), title="optimizer", frameon=False)
 
+    # make sure plot shows zero, it's too close and awkward if it doesn't
     _, emax = ax_err.get_ylim()
     ax_err.set_ylim([0, emax])
 
-    ax_regret.set_ylim([-0.03, 0.6])
-
     if style == BAD_INIT:
+        ax_regret.set_ylim([-0.03, 0.6])
         for ax in axs:
             ax.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
-            # put GAPS in front
-            ax.lines[0].set(zorder=100)
 
     if style != BAD_INIT:
         for ax in axs:
             shade_fan(dfs[0], ax)
-            ax.legend()
+        # TODO: restore fan to legend!!
+
+    ax_regret.legend(
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
+        title="optimizer",
+        frameon=False,
+    )
 
     fig_cost.savefig(f"{style}_cost.pdf")
 
@@ -303,7 +309,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    default_df = [df for df in dfs if df["optimizer"][0] == "none"]
+    default_df = [df for df in dfs if df["optimizer"][0] == "baseline"]
     assert len(default_df) == 1
     default_df = default_df[0]
 
@@ -312,7 +318,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     components = []
     styles = ["-", ":"]
     for df in dfs:
-        if df["optimizer"][0] in ["none", "detune"]:
+        if df["optimizer"][0] in ["baseline", "detune"]:
             continue
         for axname in AXES:
             for gaintype in GAINTYPES:
@@ -330,7 +336,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                     TIME: df[TIME],
                     RATIO_DEFAULT: ratio,
                 }))
-    df = pd.concat(components).reset_index().sample(frac=0.01)
+    df = pd.concat(components).reset_index()
 
     if True:
         grid = sns.relplot(
@@ -339,7 +345,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=RATIO_DEFAULT,
             col="optimizer",
-            col_order=["gaps", "singlepoint", "ogd"],
+            col_order=["gaps", "episodic", "singlepoint", "ogd"],
             row="axis",
             row_order=AXES,
             hue="parameter",
@@ -469,8 +475,8 @@ def main():
     if style == MULTI_PARAM:
         compare_params(dfs, style)
     else:
-        #plot_params(dfs, style)
-        #plot_fig8(dfs, style)
+        plot_params(dfs, style)
+        plot_fig8(dfs, style)
         plot_costs_v2(dfs, style)
 
 

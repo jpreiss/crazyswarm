@@ -209,7 +209,7 @@ def main():
     group.add_argument(
         "--optimizer",
         type=str,
-        choices=["none", "gaps", "ogd", "singlepoint", "actorcritic"],
+        choices=["none", "gaps", "ogd", "singlepoint", "actorcritic", "episodic"],
         default="none",
         help="parameter optimization algorithm.",
     )
@@ -288,6 +288,8 @@ def main():
         params = dict(optimizer=2, eta=2e-3)
     elif args.optimizer == "actorcritic":
         params = dict(optimizer=3, eta=2e-3, ac_rate=1e-2)
+    elif args.optimizer == "episodic":
+        params = dict(optimizer=4, eta=2e-2, ep_len=1000)
     else:
         gaps = False
 
