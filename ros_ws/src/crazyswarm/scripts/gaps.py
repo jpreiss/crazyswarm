@@ -245,6 +245,12 @@ def main():
             "(so actually a half cycle). -1 means no fan."
         ),
     )
+    group.add_argument(
+        "--episode",
+        type=int,
+        default=1000,
+        help="episode length (ignored for non-episodic optimizers)",
+    )
     args, _ = parser.parse_known_args()
 
     swarm = Crazyswarm(parent_parser=parser)
@@ -289,7 +295,7 @@ def main():
     elif args.optimizer == "actorcritic":
         params = dict(optimizer=3, eta=2e-3, ac_rate=1e-2)
     elif args.optimizer == "episodic":
-        params = dict(optimizer=4, eta=2e-2, ep_len=1000)
+        params = dict(optimizer=4, eta=2e-2, ep_len=args.episode)
     else:
         gaps = False
 

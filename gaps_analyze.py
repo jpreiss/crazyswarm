@@ -8,6 +8,7 @@ from typing import Sequence
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib import patheffects
+from matplotlib.ticker import ScalarFormatter
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -18,7 +19,8 @@ BAD_INIT = "bad_init"
 FAN = "fan"
 WEIGHT = "weight"
 MULTI_PARAM = "multi_param"
-STYLES = [BASIC, BAD_INIT, FAN, WEIGHT, MULTI_PARAM]
+EPISODIC = "episodic"
+STYLES = [BASIC, BAD_INIT, FAN, WEIGHT, MULTI_PARAM, EPISODIC]
 
 # column names
 TIME = "time (sec)"
@@ -32,6 +34,8 @@ RATIO_DEFAULT = r"value / default"
 # other constants
 GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 AXES = ["xy", "z"]
+GAPS_COLOR = "#0081EA"
+EPISODIC_COLOR = [1.0, 0.7, 0.2]
 
 
 
@@ -452,6 +456,45 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
     grid.savefig(f"compare_params.pdf")
 
 
+def episodic(df_gaps, dfs_episodic):
+    def total_cost(df):
+        df = df.bfill().ffill()
+        summand = df["cost"][1:] * df[TIME].diff()[1:]
+        return sum(summand)
+    sns.set_style("whitegrid")
+
+    fig, ax = plt.subplots(figsize=(3.25, 2.0), constrained_layout=True)
+
+    gapscost = total_cost(df_gaps)
+    ax.axhline(gapscost, label="GAPS", color=GAPS_COLOR, linewidth=2)
+
+    x = np.array([df["episode"][0] for df in dfs_episodic])
+    y = np.array([total_cost(df) for df in dfs_episodic])
+    ax.plot(
+        x, y,
+        label="episodic",
+        color=EPISODIC_COLOR,
+        marker=".",
+        markersize=12,
+        markeredgewidth=0,
+        markerfacecolor="black",
+    )
+    ax.set(xticks=[500, 1000, 1500, 2000, 2500, 3000])
+    ax.set(yticks=[0.25, 0.275, 0.3, 0.325], ylim=[0.245, 0.335])
+    ax.xaxis.set_major_formatter(ScalarFormatter())
+    plt.minorticks_off()
+    ax.legend()
+    ax.set(xlabel="episode length", ylabel="total cost")
+
+    extra_pct = 100 * (y / gapscost - 1)
+    best, worst = np.amin(extra_pct), np.amax(extra_pct)
+    print(f"Episodic: cost ratio ranges between {best} and {worst}.")
+
+    sns.despine(ax=ax, left=True, bottom=True)
+    fig.savefig("episodic.pdf")
+    fig.savefig("episodic.png", dpi=200)
+
+
 def main():
     style = sys.argv[-1]
     assert style in STYLES
@@ -474,6 +517,8 @@ def main():
 
     if style == MULTI_PARAM:
         compare_params(dfs, style)
+    elif style == EPISODIC:
+        episodic(dfs[0], dfs[1:])
     else:
         plot_params(dfs, style)
         plot_fig8(dfs, style)

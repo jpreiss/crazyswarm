@@ -66,6 +66,8 @@ def convert(parampath, configpath, bagpath, outpath):
     df = pd.DataFrame(records)
     df = df.groupby("t").first().reset_index()
     df["optimizer"] = kind
+    for k, v in config.items():
+        df[k] = v
     df.to_json(outpath)
 
 
