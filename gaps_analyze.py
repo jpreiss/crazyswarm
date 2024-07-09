@@ -26,7 +26,7 @@ STYLES = [BASIC, BAD_INIT, FAN, WEIGHT, MULTI_PARAM, EPISODIC]
 TIME = "time (sec)"
 ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
-REGRET = "``regret'' vs. default"
+REGRET = "cumulative (cost - expert)"
 EXPERIMENT = "experiment"
 LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
 RATIO_DEFAULT = r"value / default"
@@ -193,14 +193,15 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     ax_err, ax_regret = axs
 
     optimizer_styles = dict(
-        gaps=dict(color="black", linewidth=2),
-        expert=dict(color=(0, 0.8, 0.4), linewidth=1.25),
-        detune=dict(color=(1.0, 0.2, 0.4), linewidth=1.25),
-        singlepoint=dict(color="black", linestyle=(0, (1, 0.5)), linewidth=1.5),
-        episodic=dict(color=(0, 0.3, 0.9), linestyle=(0, (1, 0.5, 3, 0.5)), linewidth=1.5),
-        ogd=dict(color="black", linestyle=(0, (3, 1.0)), linewidth=1.5),
+        gaps=dict(color="black"),
+        expert=dict(color=(0, 0.8, 0.4)),
+        detune=dict(color=(1.0, 0.2, 0.4)),
+        singlepoint=dict(color=(0, 0.8, 1.0)),
+        episodic=dict(color=(0.6, 0.1, 0.8), linestyle=":"),
+        ogd=dict(color="black", linestyle=(0, (3, 1.0))),
     )
-    optimizer_styles[EPISODIC_STAR] = dict(color=(0, 0.3, 0.9), linewidth=2)
+    ep_star = {**optimizer_styles["episodic"], "linestyle": None}
+    optimizer_styles[EPISODIC_STAR] = ep_star
 
     # take downsampled means to smooth the plots a little.
     maxtime = max(df[TIME].max() for df in dfs)
@@ -221,30 +222,33 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     df_base = df_base[0]
     for df in dfs:
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
-    dfcat = pd.concat(dfs).reset_index()
 
-    opt_order = ["gaps", "singlepoint", "episodic", EPISODIC_STAR, "detune", "expert"]
+    opt_order = ["expert", "gaps", "singlepoint", "episodic", EPISODIC_STAR, "detune"]
     for i, opt in enumerate(opt_order):
         z = 1000 - i  # on top of grid, etc
-        df = dfcat[dfcat["optimizer"] == opt]
+        df = [df for df in dfs if df["optimizer"][0] == opt]
+        assert len(df) == 1
+        df = df[0]
         ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
-        if opt not in ["gaps", "detune", "expert"]:
-            continue
-        ax_err.plot(df[TIME], df[ERR], label=opt, zorder=z, **optimizer_styles[opt])
+        dflaps = df.resample("4s").apply(agg).reset_index()
+        xticks = np.arange(len(dflaps)) + 1
+        ax_err.plot(
+            xticks,
+            dflaps[ERR],
+            label=opt,
+            zorder=z,
+            marker=".",
+            linewidth=1,
+            markersize=10,
+            **optimizer_styles[opt]
+        )
 
-    for ax in axs:
-        ax.set(xlabel=TIME)
-    ax_err.set(ylabel=ERR)
-    ax_regret.set(ylabel=REGRET)
-
-    # make sure plot shows zero, it's too close and awkward if it doesn't
-    _, emax = ax_err.get_ylim()
-    ax_err.set_ylim([0, emax])
+    ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
+    ax_regret.set(xlabel=TIME, ylabel=REGRET)
 
     if style == BAD_INIT:
         ax_regret.set_ylim([-0.03, 0.6])
-        for ax in axs:
-            ax.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
+        ax_regret.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
 
     if style != BAD_INIT:
         for ax in axs:
