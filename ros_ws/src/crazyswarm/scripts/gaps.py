@@ -109,8 +109,73 @@ class SimPub:
         pass
 
 
+def rollout_fanbox(cf, gaps, Z, radius, timeHelper, pub, repeats, period):
+    DZ = 0.5
+    init_pos = cf.initialPosition + [0, 0, Z - DZ]
+    dz = np.array([0, 0, DZ])
+    dx = np.array([-2 * radius, 0, 0])
+
+    positions = [
+        init_pos + dx,
+        init_pos + dx + dz,
+        init_pos + dz,
+        init_pos,
+    ]
+    time_dz = 1.5
+    time_dx = (period - 2 * time_dz) / 2
+    # time[i] = time to take when going from positions[i] to next.
+    times = [
+        time_dx,
+        time_dz,
+        time_dx,
+        time_dz,
+    ]
+
+    print("init going to", init_pos)
+    cf.goTo(init_pos, yaw=0, duration=2.0)
+    timeHelper.sleep(2.0)
+
+    cf.setParam("gaps6DOF/enable", 1 if gaps else 0)
+    pub.trial(True)
+
+    t0 = timeHelper.time() - 1e-6  # TODO: fix div/0 error in sim
+
+    # state machine so we can send heartbeat messages faster
+    cycle = -1
+    step = 3
+    step_start = -1000
+
+    while True:
+        #print("loop")
+        t = timeHelper.time() - t0
+        if t - step_start > times[step]:
+            step = (step + 1) % 4
+            print(f"starting step {step}")
+            if step == 0:
+                cycle += 1
+                print(f"starting cycle {cycle}")
+                if cycle >= repeats:
+                    break
+            step_start = t
+            print(f"going to", positions[step])
+            cf.goTo(positions[step], yaw=0, duration=times[step])
+
+        pub.trial(True)
+        fan_on = step in [2, 3]
+        pub.fan(fan_on)
+
+        timeHelper.sleepForRate(100)
+
+    #cf.goTo(positions[0], yaw=0, duration=3.0)
+    #timeHelper.sleep(4.0)
+
+
 def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan_cycle):
     """The part of the flight where we use low-level commands."""
+    if trajmode == LINE:
+        rollout_fanbox(cf, gaps, Z, radius, timeHelper, pub, repeats, period)
+        return
+
     init_pos = cf.initialPosition + [0, 0, Z]
     if trajmode not in [HORIZ, LINE]:
         assert Z > radius / 2 + 0.2
@@ -320,7 +385,7 @@ def main():
         repeats=args.repeats, period=args.period, fan_cycle=fan_cycle)
 
     cf.notifySetpointsStop()
-    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.0)
+    cf.goTo(cf.initialPosition + [0, 0, Z], yaw=0, duration=1.5)
     timeHelper.sleep(2.0)
 
     land_height = 0.2 if args.traj == LINE else 0.05
