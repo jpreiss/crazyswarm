@@ -19,7 +19,6 @@ from uav_trajectory import compute_omega, TrigTrajectory
 PARAMS = [
     p + s for p, s in it.product(["ki_", "kp_", "kv_", "kr_", "kw_"], ["xy", "z"])
 ]
-HZ = 500
 
 # trajectory modes
 VERT = "vert"
