@@ -291,7 +291,7 @@ def main():
     elif args.optimizer == "ogd":
         params = dict(optimizer=0, eta=4e-2, damping=0)
     elif args.optimizer == "singlepoint":
-        params = dict(optimizer=2, eta=2e-3)
+        params = dict(optimizer=2, eta=2e-2)
     elif args.optimizer == "actorcritic":
         params = dict(optimizer=3, eta=2e-3, ac_rate=1e-2)
     elif args.optimizer == "episodic":
@@ -301,6 +301,8 @@ def main():
 
     if gaps:
         params = {"gaps6DOF/" + k: v for k, v in params.items()}
+        print("setting params to:")
+        print(params)
         cf.setParams(params)
 
     fan_cycle = args.fan_cycle
