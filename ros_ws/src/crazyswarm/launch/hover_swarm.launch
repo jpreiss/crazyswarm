@@ -13,8 +13,8 @@
       genericLogTopics: ["gaps"]
       genericLogTopicFrequencies: [10]
       genericLogTopic_gaps_Variables: [
-        "gaps6DOF.yabsmax",
-        #"gaps6DOF.sum_cost",
+        #"gaps6DOF.yabsmax",
+        "gaps6DOF.sum_cost",
         "gaps6DOF.ki_xy",
         "gaps6DOF.ki_z",
         "gaps6DOF.kp_xy",
@@ -49,6 +49,7 @@
         gaps6DOF:
           enable: 0
           sp_ep_len: 1000
+          sp_radius: 0.1
           damping: 1.0
 
           Qp: 1e0
@@ -62,7 +63,7 @@
       motion_capture_type: "vicon" # one of none,vicon,optitrack,optitrack_closed_source,qualisys,vrpn
       object_tracking_type: "libobjecttracker" # one of motionCapture,libobjecttracker
       send_position_only: True # set to False to send position+orientation; set to True to send position only
-      motion_capture_host_name: "131.215.96.209"
+      motion_capture_host_name: "131.215.96.198"
       # motion_capture_interface_ip: "" # optional for optitrack with multiple interfaces
       save_point_clouds: "/dev/null" # set to a valid path to log mocap point cloud binary file.
       print_latency: False
