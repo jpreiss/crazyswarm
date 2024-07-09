@@ -27,8 +27,12 @@ def convert(parampath, configpath, bagpath, outpath):
     except KeyError:
         # old format, before multiple optimizers
         kind = "gaps" if config["gaps"] else "none"
+    print("configpath is", configpath, ", kind is", kind)
     if kind == "none":
-        kind = "detune" if config["detune"] else "baseline"
+        kind = "detune" if config["detune"] else "expert"
+    elif kind == "episodic":
+        eplen = config["episode"]
+        kind = r"episodic$^\star$" if eplen == 1000 else "episodic"
 
     # Use the "trial" topic to isolate the part where we measure performance.
     bag = rosbag.Bag(bagpath)
@@ -65,9 +69,9 @@ def convert(parampath, configpath, bagpath, outpath):
                     records.append(dict(t=tsec, pos_x=trans.x, pos_y=trans.y, pos_z=trans.z))
     df = pd.DataFrame(records)
     df = df.groupby("t").first().reset_index()
-    df["optimizer"] = kind
     for k, v in config.items():
         df[k] = v
+    df["optimizer"] = kind
     df.to_json(outpath)
 
 
