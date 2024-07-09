@@ -112,7 +112,6 @@ class SimPub:
 
 def rollout(cf, gaps, Z, radius, timeHelper, pub, trajmode, repeats, period, fan_cycle):
     """The part of the flight where we use low-level commands."""
-    radius = 0.75
     init_pos = cf.initialPosition + [0, 0, Z]
     if trajmode not in [HORIZ, LINE]:
         assert Z > radius / 2 + 0.2
