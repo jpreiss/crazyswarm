@@ -36,6 +36,7 @@ GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
+EPISODIC_STAR = r"episodic$^\star$"
 
 
 
@@ -204,7 +205,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "baseline"]
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
@@ -234,12 +235,13 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
 
     optimizer_styles = dict(
         gaps=dict(color="black", linewidth=2),
-        baseline=dict(color=(0, 0.8, 0.4), linewidth=1.25),
+        expert=dict(color=(0, 0.8, 0.4), linewidth=1.25),
         detune=dict(color=(1.0, 0.2, 0.4), linewidth=1.25),
         singlepoint=dict(color="black", linestyle=(0, (1, 0.5)), linewidth=1.5),
         episodic=dict(color=(0, 0.3, 0.9), linestyle=(0, (1, 0.5, 3, 0.5)), linewidth=1.5),
         ogd=dict(color="black", linestyle=(0, (3, 1.0)), linewidth=1.5),
     )
+    optimizer_styles[EPISODIC_STAR] = dict(color=(0, 0.3, 0.9), linewidth=2)
 
     # take downsampled means to smooth the plots a little.
     maxtime = max(df[TIME].max() for df in dfs)
@@ -255,19 +257,19 @@ def plot_costs_v2(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "baseline"]
+    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
     assert len(df_base) == 1
     df_base = df_base[0]
     for df in dfs:
         df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
     dfcat = pd.concat(dfs).reset_index()
 
-    opt_order = ["gaps", "singlepoint", "episodic", "ogd", "detune", "baseline"]
+    opt_order = ["gaps", "singlepoint", "episodic", EPISODIC_STAR, "detune", "expert"]
     for i, opt in enumerate(opt_order):
         z = 1000 - i  # on top of grid, etc
         df = dfcat[dfcat["optimizer"] == opt]
         ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
-        if opt not in ["gaps", "detune", "baseline"]:
+        if opt not in ["gaps", "detune", "expert"]:
             continue
         ax_err.plot(df[TIME], df[ERR], label=opt, zorder=z, **optimizer_styles[opt])
 
@@ -313,7 +315,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    default_df = [df for df in dfs if df["optimizer"][0] == "baseline"]
+    default_df = [df for df in dfs if df["optimizer"][0] == "expert"]
     assert len(default_df) == 1
     default_df = default_df[0]
 
@@ -322,7 +324,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     components = []
     styles = ["-", ":"]
     for df in dfs:
-        if df["optimizer"][0] in ["baseline", "detune"]:
+        if df["optimizer"][0] in ["expert", "detune"]:
             continue
         for axname in AXES:
             for gaintype in GAINTYPES:
@@ -349,7 +351,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=RATIO_DEFAULT,
             col="optimizer",
-            col_order=["gaps", "episodic", "singlepoint", "ogd"],
+            col_order=["gaps", "episodic", EPISODIC_STAR, "singlepoint"],
             row="axis",
             row_order=AXES,
             hue="parameter",
@@ -361,7 +363,9 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             h1 = ax.axhline(1.0, color="black")
             h2 = ax.axhline(0.5, color="black", linestyle=":")
             handles = [h1, h2]
-        labels =["baseline", "detuned"]
+            if style != BAD_INIT:
+                shade_fan(dfs[0], ax)
+        labels =["expert", "detuned"]
 
         grid.savefig(f"{style}_params.pdf")
     else:
@@ -521,8 +525,9 @@ def main():
         episodic(dfs[0], dfs[1:])
     else:
         plot_params(dfs, style)
-        plot_fig8(dfs, style)
         plot_costs_v2(dfs, style)
+        if style != FAN:
+            plot_fig8(dfs, style)
 
 
 if __name__ == "__main__":
