@@ -32,8 +32,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	if not os.path.exists(os.path.join(args.configpath, "allCrazyflies.yaml")) or \
-		not os.path.exists(os.path.join(args.configpath, "crazyflieTypes.yaml")) or \
-		not os.path.exists(os.path.join(args.configpath, "crazyflies.yaml")):
+		not os.path.exists(os.path.join(args.configpath, "crazyflieTypes.yaml")):
 		print("ERROR: Could not find all yaml configuration files in configpath ({}).".format(args.configpath))
 		exit()
 
@@ -42,6 +41,8 @@ if __name__ == '__main__':
 
 	if not os.path.exists(args.nrf51Fw):
 		print("WARNING: Could not find NRF51 firmware ({}).".format(args.nrf51Fw))
+
+	enabled_path = os.path.join(args.configpath, "crazyflies.yaml")
 
 	# read a yaml file
 	def read_by_id(path):
@@ -59,11 +60,15 @@ if __name__ == '__main__':
 
 	def save():
 		nodes = selected_cfs()
-		with open(os.path.join(args.configpath, "crazyflies.yaml"), 'w') as outfile:
+		with open(enabled_path, 'w') as outfile:
 			yaml.dump({"crazyflies": nodes}, outfile)
 
 	allCrazyflies = read_by_id(os.path.join(args.configpath, "allCrazyflies.yaml"))
-	enabled = read_by_id(os.path.join(args.configpath, "crazyflies.yaml")).keys()
+	if os.path.exists(enabled_path):
+		enabled = read_by_id(enabled_path).keys()
+	else:
+		enabled = []
+
 	with open(os.path.join(args.configpath, "crazyflieTypes.yaml"), 'r') as ymlfile:
 		data = yaml.load(ymlfile, Loader=yaml.SafeLoader)
 		cfTypes = data["crazyflieTypes"]
