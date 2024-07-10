@@ -36,7 +36,7 @@ GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
-EPISODIC_STAR = r"episodic$^\star$"
+EPISODIC_STAR = r"episodic$\star$"
 GAPS = "M-GAPS"
 OPT_ORDER = ["expert", GAPS, EPISODIC_STAR, "episodic", "singlepoint", "detune"]
 

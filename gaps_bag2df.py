@@ -32,7 +32,7 @@ def convert(parampath, configpath, bagpath, outpath):
         kind = "detune" if config["detune"] else "expert"
     elif kind == "episodic":
         eplen = config["episode"]
-        kind = r"episodic$^\star$" if eplen == 2000 else "episodic"
+        kind = r"episodic$\star$" if eplen == 2000 else "episodic"
     elif kind == "gaps":
         kind = "M-GAPS"
 
