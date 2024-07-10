@@ -14,8 +14,7 @@ $(ROS)/weight_default.json \
 $(ROS)/weight_gaps.json
 	python3 $^ weight
 
-# TODO: figure out the right way to make these repetitive deps
-BAD_INIT := $(shell echo $(ROS)/bad_init_{gaps,detuned,modelfree,episodic,episodicstar,expert}_{1,2}.json)
+BAD_INIT := $(shell echo $(ROS)/bad_init_{gaps,detuned,modelfree,episodic,episodicstar,expert}_{1,2,3,4,5}.json)
 
 bad_init_params.pdf: gaps_analyze.py $(BAD_INIT)
 	python3 $^ bad_init

@@ -38,7 +38,7 @@ GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
 EPISODIC_STAR = r"episodic$\star$"
 GAPS = "M-GAPS"
-OPT_ORDER = ["expert", GAPS, EPISODIC_STAR, "episodic", "singlepoint", "detune"]
+OPT_ORDER = ["expert", "detune", GAPS, EPISODIC_STAR, "episodic", "singlepoint"]
 
 
 
@@ -116,7 +116,7 @@ def plot_fig8(dfs, style):
     dfs = [df for df in dfs if df["trial"][0] == 1]
     dfs = sorted(dfs, key=lambda df: OPT_ORDER.index(df["optimizer"][0]))
 
-    width = len(dfs) * (1.5 if style == FAN else 3.5)
+    width = len(dfs) * (1.5 if style == FAN else 3.2)
     fig_fig8, axs_fig8 = plt.subplots(
         1, len(dfs),
         figsize=(width, 2.7),
@@ -234,20 +234,22 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     for i, opt in enumerate(OPT_ORDER):
         z = 1000 - i  # on top of grid, etc
         opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
+        label = opt
         for df in opt_dfs:
-            ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
+            ax_regret.plot(df[TIME], df[REGRET], label=label, zorder=z, **optimizer_styles[opt])
             dflaps = df.resample("4s").apply(agg).reset_index()
             xticks = np.arange(len(dflaps)) + 1
             ax_err.plot(
                 xticks,
                 dflaps[ERR],
-                label=opt,
+                label=label,
                 zorder=z,
                 marker=".",
                 linewidth=1,
                 markersize=10,
                 **optimizer_styles[opt]
             )
+            label = None
 
     ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
     ax_regret.set(xlabel=TIME, ylabel=REGRET)
