@@ -37,6 +37,8 @@ AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
 EPISODIC_STAR = r"episodic$^\star$"
+GAPS = "M-GAPS"
+OPT_ORDER = ["expert", GAPS, EPISODIC_STAR, "episodic", "singlepoint", "detune"]
 
 
 
@@ -111,6 +113,9 @@ def plot_fig8(dfs, style):
 
     sns.set_style("whitegrid")
 
+    dfs = [df for df in dfs if df["trial"][0] == 1]
+    dfs = sorted(dfs, key=lambda df: OPT_ORDER.index(df["optimizer"][0]))
+
     width = len(dfs) * (1.5 if style == FAN else 3.5)
     fig_fig8, axs_fig8 = plt.subplots(
         1, len(dfs),
@@ -126,6 +131,7 @@ def plot_fig8(dfs, style):
     transform = None
 
     for ax, df in zip(axs_fig8, dfs):
+
         name = df["optimizer"].iloc[0]
 
         # The 10ms interp is a bit slow, so only grab the columns we need.
@@ -133,6 +139,7 @@ def plot_fig8(dfs, style):
         df = df[keep_cols].copy()
         df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
         df = df.set_index(TIME)
+        # NOTE: 20ms is the longest possible interval, then jaggies appear.
         df = df.resample("20ms").apply(agg)
         target_mask = df.index < datetime.timedelta(seconds=4.0)
 
@@ -189,7 +196,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    fig_cost, axs = plt.subplots(1, 2, figsize=(10, 2.25), constrained_layout=True)
+    fig_cost, axs = plt.subplots(1, 2, figsize=(10, 4.25), constrained_layout=True)
     ax_err, ax_regret = axs
 
     optimizer_styles = dict(
@@ -202,13 +209,14 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     )
     ep_star = {**optimizer_styles["episodic"], "linestyle": None}
     optimizer_styles[EPISODIC_STAR] = ep_star
+    optimizer_styles[GAPS] = optimizer_styles["gaps"]
 
     # take downsampled means to smooth the plots a little.
-    maxtime = max(df[TIME].max() for df in dfs)
     dfs_sampled = []
     for df in dfs:
         df["timedelta"] = pd.to_timedelta(df[TIME], unit="seconds")
         dfi = df.set_index("timedelta")
+        dfi = dfi[[TIME, "cost", ERR, "optimizer", "trial"]]
         dfr = dfi.resample("100ms").apply(agg)
         # this used to be before resampling, but that was wrong!
         dfr[COST_CUM] = (dfr["cost"] * dfr[TIME].diff()).cumsum()
@@ -217,31 +225,28 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    df_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
-    assert len(df_base) == 1
-    df_base = df_base[0]
+    dfs_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
+    regret_baseline = (1 / len(dfs_base)) * sum(df[COST_CUM] for df in dfs_base)
     for df in dfs:
-        df[REGRET] = df[COST_CUM] - df_base[COST_CUM]
+        df[REGRET] = df[COST_CUM] - regret_baseline
 
-    opt_order = ["expert", "gaps", "singlepoint", "episodic", EPISODIC_STAR, "detune"]
-    for i, opt in enumerate(opt_order):
+    for i, opt in enumerate(OPT_ORDER):
         z = 1000 - i  # on top of grid, etc
-        df = [df for df in dfs if df["optimizer"][0] == opt]
-        assert len(df) == 1
-        df = df[0]
-        ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
-        dflaps = df.resample("4s").apply(agg).reset_index()
-        xticks = np.arange(len(dflaps)) + 1
-        ax_err.plot(
-            xticks,
-            dflaps[ERR],
-            label=opt,
-            zorder=z,
-            marker=".",
-            linewidth=1,
-            markersize=10,
-            **optimizer_styles[opt]
-        )
+        opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
+        for df in opt_dfs:
+            ax_regret.plot(df[TIME], df[REGRET], label=opt, zorder=z, **optimizer_styles[opt])
+            dflaps = df.resample("4s").apply(agg).reset_index()
+            xticks = np.arange(len(dflaps)) + 1
+            ax_err.plot(
+                xticks,
+                dflaps[ERR],
+                label=opt,
+                zorder=z,
+                marker=".",
+                linewidth=1,
+                markersize=10,
+                **optimizer_styles[opt]
+            )
 
     ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
     ax_regret.set(xlabel=TIME, ylabel=REGRET)
@@ -278,9 +283,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    default_df = [df for df in dfs if df["optimizer"][0] == "expert"]
-    assert len(default_df) == 1
-    default_df = default_df[0]
+    default_df = [df for df in dfs if df["optimizer"][0] == "expert"][0]
 
     #fig, axs = plt.subplots(1, 2, figsize=(9, 2.5), constrained_layout=True, sharey=True)
 
@@ -288,6 +291,8 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     styles = ["-", ":"]
     for df in dfs:
         if df["optimizer"][0] in ["expert", "detune"]:
+            continue
+        if df["trial"][0] != 1:
             continue
         for axname in AXES:
             for gaintype in GAINTYPES:
@@ -300,6 +305,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 ratio = th / default
                 components.append(pd.DataFrame({
                     "optimizer": df["optimizer"],
+                    "trial": df["trial"],
                     "axis": axname,
                     "parameter": gaintype,
                     TIME: df[TIME],

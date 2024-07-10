@@ -32,7 +32,9 @@ def convert(parampath, configpath, bagpath, outpath):
         kind = "detune" if config["detune"] else "expert"
     elif kind == "episodic":
         eplen = config["episode"]
-        kind = r"episodic$^\star$" if eplen == 1000 else "episodic"
+        kind = r"episodic$^\star$" if eplen == 2000 else "episodic"
+    elif kind == "gaps":
+        kind = "M-GAPS"
 
     # Use the "trial" topic to isolate the part where we measure performance.
     bag = rosbag.Bag(bagpath)

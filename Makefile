@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 ROS:=$(HOME)/.ros
 
 fan_params.pdf: \
@@ -13,15 +15,9 @@ $(ROS)/weight_gaps.json
 	python3 $^ weight
 
 # TODO: figure out the right way to make these repetitive deps
+BAD_INIT := $(shell echo $(ROS)/bad_init_{gaps,detuned,modelfree,episodic,episodicstar,expert}_{1,2}.json)
 
-bad_init_params.pdf: \
-gaps_analyze.py \
-$(ROS)/diag_bad_init_gaps.json \
-$(ROS)/diag_bad_init_nogaps.json \
-$(ROS)/diag_bad_init_singlepoint.json \
-$(ROS)/diag_bad_init_episodic.json \
-$(ROS)/diag_bad_init_episodic_badep.json \
-$(ROS)/diag_good_init.json
+bad_init_params.pdf: gaps_analyze.py $(BAD_INIT)
 	python3 $^ bad_init
 # $(ROS)/diag_bad_init_ogd.json \
 
