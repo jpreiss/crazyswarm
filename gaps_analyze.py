@@ -323,7 +323,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=RATIO_DEFAULT,
             col="optimizer",
-            col_order=["gaps", "episodic", EPISODIC_STAR, "singlepoint"],
+            col_order=[GAPS, "episodic", EPISODIC_STAR, "singlepoint"],
             row="axis",
             row_order=AXES,
             hue="parameter",
