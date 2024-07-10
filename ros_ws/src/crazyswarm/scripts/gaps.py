@@ -314,6 +314,12 @@ def main():
         default=1000,
         help="episode length (ignored for non-episodic optimizers)",
     )
+    group.add_argument(
+        "--trial",
+        type=int,
+        default=1,
+        help="trial index",
+    )
     args, _ = parser.parse_known_args()
 
     swarm = Crazyswarm(parent_parser=parser)
