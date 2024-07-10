@@ -197,9 +197,6 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    fig_cost, axs = plt.subplots(1, 2, figsize=(10, 4.25), constrained_layout=True)
-    ax_err, ax_regret = axs
-
     optimizer_styles = dict(
         gaps=dict(color="black"),
         expert=dict(color=(0, 0.8, 0.4)),
@@ -219,6 +216,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
         dfi = df.set_index("timedelta")
         dfi = dfi[[TIME, "cost", ERR, "optimizer", "trial"]]
         dfr = dfi.resample("100ms").apply(agg)
+        dfr[TIME] = dfr.index.total_seconds()
         # this used to be before resampling, but that was wrong!
         dfr[COST_CUM] = (dfr["cost"] * dfr[TIME].diff()).cumsum()
         dfs_sampled.append(dfr)
@@ -228,49 +226,70 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     # need the dataframe split.
     dfs_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
     regret_baseline = (1 / len(dfs_base)) * sum(df[COST_CUM] for df in dfs_base)
+    # NOTE: below is somewhat logical but let's stick with "expected" cost
+    #regret_baseline = min(*dfs_base, key=lambda df: df[COST_CUM][-1])[COST_CUM]
     for df in dfs:
         df[REGRET] = df[COST_CUM] - regret_baseline
 
-    for i, opt in enumerate(OPT_ORDER):
-        z = 1000 - i  # on top of grid, etc
-        opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
-        label = opt
-        for df in opt_dfs:
-            ax_regret.plot(df[TIME], df[REGRET], label=label, zorder=z, **optimizer_styles[opt])
-            dflaps = df.resample("4s").apply(agg).reset_index()
-            xticks = np.arange(len(dflaps)) + 1
-            ax_err.plot(
-                xticks,
-                dflaps[ERR],
-                label=label,
-                zorder=z,
-                marker=".",
-                linewidth=1,
-                markersize=10,
-                **optimizer_styles[opt]
-            )
-            label = None
+    df = pd.concat(dfs).reset_index()
 
-    ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
-    ax_regret.set(xlabel=TIME, ylabel=REGRET)
+    if False:
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4.25), constrained_layout=True)
+        ax_err, ax_regret = axs
+        sns.lineplot(
+            df,
+            ax=ax_regret,
+            x=TIME,
+            y=REGRET,
+            hue="optimizer",
+            hue_order=OPT_ORDER,
+            errorbar="sd",
+        )
+        for i, opt in enumerate(OPT_ORDER):
+            z = 1000 - i  # on top of grid, etc
+            opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
+            label = opt
+            for df in opt_dfs:
+                #ax_regret.plot(df[TIME], df[REGRET], label=label, zorder=z, **optimizer_styles[opt])
+                dflaps = df.resample("4s").apply(agg).reset_index()
+                xticks = np.arange(len(dflaps)) + 1
+                ax_err.plot(
+                    xticks,
+                    dflaps[ERR],
+                    label=label,
+                    zorder=z,
+                    marker=".",
+                    linewidth=1,
+                    markersize=10,
+                    **optimizer_styles[opt]
+                )
+                label = None
+        ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
+        if style == BAD_INIT:
+            ax_regret.set_ylim([-0.03, 0.6])
+            ax_regret.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
 
-    if style == BAD_INIT:
-        ax_regret.set_ylim([-0.03, 0.6])
-        ax_regret.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
+        if style != BAD_INIT:
+            for ax in axs:
+                shade_fan(dfs[0], ax)
+            # TODO: restore fan to legend!!
 
-    if style != BAD_INIT:
-        for ax in axs:
-            shade_fan(dfs[0], ax)
-        # TODO: restore fan to legend!!
-
-    ax_regret.legend(
-        loc="center left",
-        bbox_to_anchor=(1, 0.5),
-        title="optimizer",
-        frameon=False,
-    )
-
-    fig_cost.savefig(f"{style}_cost.pdf")
+        fig.savefig(f"{style}_cost.pdf")
+    else:
+        grid = sns.relplot(
+            df,
+            kind="line",
+            x=TIME,
+            y=REGRET,
+            hue="optimizer",
+            hue_order=OPT_ORDER,
+            errorbar="sd",
+            height=3.0,
+            aspect=1.4,
+        )
+        if style == BAD_INIT:
+            grid.set(ylim=[-0.03, 0.5], xticks=np.linspace(0, 24, 7), xlim=(0, 24))
+        grid.savefig(f"{style}_cost.pdf")
 
 
 def param_format(p):
@@ -497,9 +516,9 @@ def main():
         episodic(dfs[0], dfs[1:])
     else:
         plot_params(dfs, style)
-        plot_costs(dfs, style)
-        if style != FAN:
-            plot_fig8(dfs, style)
+        # plot_costs(dfs, style)
+        # if style != FAN:
+        #     plot_fig8(dfs, style)
 
 
 if __name__ == "__main__":
