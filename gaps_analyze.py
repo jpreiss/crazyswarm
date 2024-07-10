@@ -163,7 +163,8 @@ def plot_fig8(dfs, style):
                 pos = pos[:, [1, -1]]
                 target = target[:, [1, -1]]
             else:
-                shift = -np.array([0.25, 0.9])
+                ctr = np.mean(target, axis=0)
+                shift = -ctr[[0, 2]]
                 pos = pos[:, [0, -1]] + shift
                 target = target[:, [0, -1]] + shift
 
