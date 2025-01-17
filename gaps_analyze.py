@@ -116,10 +116,10 @@ def plot_fig8(dfs, style):
     dfs = [df for df in dfs if df["trial"][0] == 1]
     dfs = sorted(dfs, key=lambda df: OPT_ORDER.index(df["optimizer"][0]))
 
-    width = len(dfs) * (1.5 if style == FAN else 3.2)
+    width = len(dfs) * (1.5 if style == FAN else 2.3)
     fig_fig8, axs_fig8 = plt.subplots(
         1, len(dfs),
-        figsize=(width, 2.7),
+        figsize=(width, 2.1),
         constrained_layout=True,
         sharey=True,
     )
@@ -136,6 +136,9 @@ def plot_fig8(dfs, style):
 
         # The 10ms interp is a bit slow, so only grab the columns we need.
         maxtime = df[TIME].max()
+        maxtime_i = int(maxtime + 0.5)
+        if np.isclose(maxtime, maxtime_i, atol=0.1):
+            maxtime = maxtime_i
         df = df[keep_cols].copy()
         df[TIME] = pd.to_timedelta(df[TIME], unit="seconds")
         df = df.set_index(TIME)
@@ -188,7 +191,7 @@ def plot_fig8(dfs, style):
 
         sns.despine(ax=ax, left=True, bottom=True)
 
-    cbar = fig_fig8.colorbar(line)
+    cbar = fig_fig8.colorbar(line, ticks=[0, maxtime / 2, maxtime])
     cbar.ax.set_ylabel(TIME)
     fig_fig8.savefig(f"{style}_fig8.pdf")
 
