@@ -347,9 +347,11 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             row_order=AXES,
             hue="parameter",
             hue_order=GAINTYPES,
-            height=2.75,
-            aspect=1.25,
+            height=1.8,
+            aspect=1.35,
         )
+        grid.set(xlim=[0, df[TIME].max()])
+        grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
         for ax in grid.axes.flat:
             h1 = ax.axhline(1.0, color="black")
             h2 = ax.axhline(0.5, color="black", linestyle=":")
