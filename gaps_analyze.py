@@ -81,7 +81,7 @@ def shade_fan(df, ax):
     label = "fan on"
     handle = None
     for pair in fan_toggles.reshape((-1, 2)):
-        handle = ax.axvspan(*pair, alpha=0.15, color="black", linewidth=0, label=label)
+        handle = ax.axvspan(*pair, alpha=0.12, color="black", linewidth=0, label=label)
         label = None
     return handle
 
@@ -317,7 +317,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
     for df in dfs:
         if df["optimizer"][0] in ["expert", "detune"]:
             continue
-        if df["trial"][0] != 1:
+        if "trial" in df.columns and df["trial"][0] != 1:
             continue
         for axname in AXES:
             for gaintype in GAINTYPES:
@@ -330,7 +330,6 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 ratio = th / default
                 components.append(pd.DataFrame({
                     "optimizer": df["optimizer"],
-                    "trial": df["trial"],
                     "axis": axname,
                     "parameter": gaintype,
                     TIME: df[TIME],
@@ -338,7 +337,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 }))
     df = pd.concat(components).reset_index()
 
-    if True:
+    if style == BAD_INIT:
         grid = sns.relplot(
             df,
             kind="line",
@@ -503,6 +502,8 @@ def main():
     dfs = []
     for path in paths:
         df = pd.read_json(path)
+        df["optimizer"] = df["optimizer"].str.replace("default", "expert")
+        df["optimizer"] = df["optimizer"].str.replace("GAPS", "M-GAPS")
         df[TIME] = df["t"] - df["t"][0]
         dfi = df.interpolate()
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
