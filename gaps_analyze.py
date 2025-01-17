@@ -355,14 +355,37 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
         grid.set(xlim=[0, df[TIME].max()])
         grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
         for ax in grid.axes.flat:
-            h1 = ax.axhline(1.0, color="black")
-            h2 = ax.axhline(0.5, color="black", linestyle=":")
-            handles = [h1, h2]
+            ax.axhline(1.0, color="black")
+            ax.axhline(0.5, color="black", linestyle=":")
             if style != BAD_INIT:
                 shade_fan(dfs[0], ax)
-        labels =["expert", "detuned"]
 
         grid.savefig(f"{style}_params.pdf")
+
+    elif style == FAN:
+        grid = sns.relplot(
+            df,
+            kind="line",
+            x=TIME,
+            y=RATIO_DEFAULT,
+            row="axis",
+            col="parameter",
+            col_order=GAINTYPES,
+            hue="parameter",
+            hue_order=GAINTYPES,
+            height=1.5,
+            aspect=1.35,
+            facet_kws=dict(sharey=False),
+        )
+        grid.set(xlim=[0, df[TIME].max()], xticks=[0, 70, 140])
+        grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
+        for ax in grid.axes.flat:
+            ax.axhline(1.0, color="black")
+            if style != BAD_INIT:
+                handle = shade_fan(dfs[0], ax)
+
+        grid.savefig(f"{style}_params.pdf")
+
     else:
         t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
 
