@@ -213,8 +213,8 @@ def fan_plot_laps(dfs: Sequence[pd.DataFrame]):
         hue="optimizer",
         hue_order=["expert", GAPS],
         palette=[EXPERT_COLOR, GAPS_COLOR],
-        height=2.25,
-        aspect=1.5,
+        height=2.0,
+        aspect=2.0,
     )
 
     tmax = df[TIME].max()
@@ -230,7 +230,10 @@ def fan_plot_laps(dfs: Sequence[pd.DataFrame]):
         ylabel="mean error (cm)",
     )
 
-    shade_fan(dfs[0], grid.axes.flat[0])
+    sns.move_legend(grid, loc="lower left", bbox_to_anchor=(0.83, 0.25))
+    handle = shade_fan(dfs[0], grid.axes.flat[0])
+    grid.add_legend({"fan on": handle}, loc="upper left", bbox_to_anchor=(0.83, 0.9))
+
     grid.savefig("fan_laps.pdf")
 
 
