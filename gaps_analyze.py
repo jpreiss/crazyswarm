@@ -26,7 +26,7 @@ STYLES = [BASIC, BAD_INIT, FAN, WEIGHT, MULTI_PARAM, EPISODIC]
 TIME = "time (sec)"
 ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
-REGRET = "cumulative (cost - expert)"
+REGRET = "regret vs. expert"
 EXPERIMENT = "experiment"
 LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
 RATIO_DEFAULT = r"value / default"
@@ -196,6 +196,42 @@ def plot_fig8(dfs, style):
     fig_fig8.savefig(f"{style}_fig8.pdf")
 
 
+def fan_plot_laps(dfs: Sequence[pd.DataFrame]):
+    dfs_laps = [
+        df.resample("4s").apply(agg).reset_index()
+        for df in dfs
+    ]
+    df = pd.concat(dfs_laps).reset_index()
+
+    grid = sns.relplot(
+        df,
+        kind="line",
+        markers=True,
+        x=TIME,
+        y=ERR,
+        hue="optimizer",
+        hue_order=OPT_ORDER,
+        height=2.25,
+        aspect=1.5,
+    )
+
+    tmax = df[TIME].max()
+    ymax = grid.axes.flat[0].get_ylim()[1]
+    lap_ticks = np.array([1, 12, 24, 36])
+    lap_tick_times = 4 * (lap_ticks - 1) + 2
+    grid.set(
+        xticks=lap_tick_times,
+        xticklabels=[f"${x}$" for x in lap_ticks],
+        xlim=[2, tmax + 0.5],
+        ylim=[0, ymax],
+        xlabel="lap",
+        ylabel="mean error (cm)",
+    )
+
+    shade_fan(dfs[0], grid.axes.flat[0])
+    grid.savefig("fan_laps.pdf")
+
+
 def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
@@ -240,8 +276,10 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     df = pd.concat(dfs).reset_index()
 
-    if style != BAD_INIT:
-        fig, axs = plt.subplots(1, 2, figsize=(10, 4.25), constrained_layout=True)
+    if style == FAN:
+        fan_plot_laps(dfs)
+    elif style != BAD_INIT:
+        fig, axs = plt.subplots(1, 2, figsize=(5, 1.7), constrained_layout=True)
         ax_err, ax_regret = axs
         sns.lineplot(
             df,
