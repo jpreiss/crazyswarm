@@ -217,7 +217,11 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     for df in dfs:
         df["timedelta"] = pd.to_timedelta(df[TIME], unit="seconds")
         dfi = df.set_index("timedelta")
-        dfi = dfi[[TIME, "cost", ERR, "optimizer", "trial"]]
+        keep_cols = [TIME, "cost", ERR, "optimizer"]
+        for optional_key in ["trial", "fan"]:
+            if optional_key in dfi.columns:
+                keep_cols.append(optional_key)
+        dfi = dfi[keep_cols]
         dfr = dfi.resample("100ms").apply(agg)
         dfr[TIME] = dfr.index.total_seconds()
         # this used to be before resampling, but that was wrong!
@@ -236,7 +240,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     df = pd.concat(dfs).reset_index()
 
-    if False:
+    if style != BAD_INIT:
         fig, axs = plt.subplots(1, 2, figsize=(10, 4.25), constrained_layout=True)
         ax_err, ax_regret = axs
         sns.lineplot(
@@ -255,40 +259,52 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
             for df in opt_dfs:
                 #ax_regret.plot(df[TIME], df[REGRET], label=label, zorder=z, **optimizer_styles[opt])
                 dflaps = df.resample("4s").apply(agg).reset_index()
-                xticks = np.arange(len(dflaps)) + 1
-                ax_err.plot(
-                    xticks,
-                    dflaps[ERR],
-                    label=label,
-                    zorder=z,
-                    marker=".",
-                    linewidth=1,
-                    markersize=10,
-                    **optimizer_styles[opt]
+                sns.lineplot(
+                    dflaps,
+                    ax=ax_err,
+                    x=TIME,
+                    y=ERR,
+                    hue="optimizer",
+                    hue_order=OPT_ORDER,
                 )
-                label = None
-        ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
+                # ax_err.plot(
+                #     xticks,
+                #     dflaps[ERR],
+                #     label=label,
+                #     zorder=z,
+                #     marker=".",
+                #     linewidth=1,
+                #     markersize=10,
+                #     **optimizer_styles[opt]
+                # )
+                # label = None
+        # ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
         if style == BAD_INIT:
             ax_regret.set_ylim([-0.03, 0.6])
             ax_regret.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
 
-        if style != BAD_INIT:
+        if style == FAN:
             for ax in axs:
                 shade_fan(dfs[0], ax)
             # TODO: restore fan to legend!!
 
         fig.savefig(f"{style}_cost.pdf")
     else:
+        kws = {}
+        if len(df["optimizer"].unique()) > 2:
+            kws["hue_order"] = OPT_ORDER
+        if "trial" in df.columns and len(df["trial"].unique()) > 1:
+            kws["errorbar"] = "sd"
+
         grid = sns.relplot(
             df,
             kind="line",
             x=TIME,
             y=REGRET,
             hue="optimizer",
-            hue_order=OPT_ORDER,
-            errorbar="sd",
             height=3.0,
             aspect=1.4,
+            **kws,
         )
         if style == BAD_INIT:
             grid.set(ylim=[-0.03, 0.5], xticks=np.linspace(0, 24, 7), xlim=(0, 24))
