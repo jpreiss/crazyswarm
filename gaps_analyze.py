@@ -36,6 +36,7 @@ GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
+EXPERT_COLOR = "#000000"
 EPISODIC_STAR = r"episodic$\star$"
 GAPS = "M-GAPS"
 OPT_ORDER = ["expert", "detune", GAPS, EPISODIC_STAR, "episodic", "singlepoint"]
@@ -210,7 +211,8 @@ def fan_plot_laps(dfs: Sequence[pd.DataFrame]):
         x=TIME,
         y=ERR,
         hue="optimizer",
-        hue_order=OPT_ORDER,
+        hue_order=["expert", GAPS],
+        palette=[EXPERT_COLOR, GAPS_COLOR],
         height=2.25,
         aspect=1.5,
     )
