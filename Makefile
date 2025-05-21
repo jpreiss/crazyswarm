@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-ROS:=$(HOME)/.ros
+ROS := ./data/final
 
 fan_params.pdf: \
 gaps_analyze.py \
@@ -13,6 +13,12 @@ gaps_analyze.py \
 $(ROS)/weight_default.json \
 $(ROS)/weight_gaps.json
 	python3 $^ weight
+
+compare_params.pdf: \
+gaps_analyze.py \
+$(ROS)/fan_gaps.json \
+$(ROS)/weight_gaps.json
+	python3 $^ multi_param
 
 BAD_INIT := $(shell echo $(ROS)/bad_init_{gaps,detuned,modelfree,episodic,episodicstar,expert}_{1,2,3,4,5}.json)
 

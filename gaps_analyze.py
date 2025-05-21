@@ -8,7 +8,7 @@ from typing import Sequence
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib import patheffects
-from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import LogLocator, ScalarFormatter
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -27,8 +27,7 @@ TIME = "time (sec)"
 ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
 REGRET = "regret vs. expert"
-EXPERIMENT = "experiment"
-LOG_RATIO_INIT = r"$\log_2(\mathrm{value} / \mathrm{initial})$"
+EXPERIMENT = "scenario"
 RATIO_DEFAULT = r"value / default"
 
 # other constants
@@ -283,9 +282,34 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     if style == FAN:
         fan_plot_laps(dfs)
+    elif style == WEIGHT:
+        df = pd.concat(dfs).reset_index()
+
+        grid = sns.relplot(
+            df,
+            kind="line",
+            markers=True,
+            x=TIME,
+            y=ERR,
+            hue="optimizer",
+            hue_order=["expert", GAPS],
+            palette=[EXPERT_COLOR, GAPS_COLOR],
+            height=2.0,
+            aspect=2.0,
+        )
+
+        tmax = df[TIME].max()
+        ymax = grid.axes.flat[0].get_ylim()[1]
+        grid.set(
+            xlim=[0, tmax],
+            ylim=[0, ymax],
+        )
+        grid.savefig("weight_cost.pdf")
+        
     elif style != BAD_INIT:
         fig, axs = plt.subplots(1, 2, figsize=(5, 1.7), constrained_layout=True)
         ax_err, ax_regret = axs
+        tmax = df[TIME].max()
         sns.lineplot(
             df,
             ax=ax_regret,
@@ -294,7 +318,9 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
             hue="optimizer",
             hue_order=OPT_ORDER,
             errorbar="sd",
+            legend=False,
         )
+        ax_regret.set(xlim=[0, tmax])
         for i, opt in enumerate(OPT_ORDER):
             z = 1000 - i  # on top of grid, etc
             opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
@@ -309,6 +335,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
                     y=ERR,
                     hue="optimizer",
                     hue_order=OPT_ORDER,
+                    legend=False,
                 )
                 # ax_err.plot(
                 #     xticks,
@@ -322,6 +349,15 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
                 # )
                 # label = None
         # ax_err.set(xticks=xticks, xlabel="lap", ylabel=ERR)
+        lap_ticks = np.array([1, 12, 24, 36])
+        lap_tick_times = 4 * (lap_ticks - 1) + 2
+        ax_err.set(
+            xticks=lap_tick_times,
+            xticklabels=lap_ticks,
+            xlim=[2, tmax-1.5],
+            xlabel="lap",
+            ylabel="mean error (cm)",
+        )
         if style == BAD_INIT:
             ax_regret.set_ylim([-0.03, 0.6])
             ax_regret.set(xticks=np.linspace(0, 32, 5), xlim=(0, 32))
@@ -465,11 +501,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
 
 def compare_params(dfs: Sequence[pd.DataFrame], style):
-    gaintypes = ["ki", "kp", "kv", "kr", "kw"]
-    axes = ["xy", "z"]
-    thetas = list(it.product(axes, gaintypes))
-    thetas_pretty = [param_format(p) for p in thetas]
-    runtype = EXPERIMENT if style == MULTI_PARAM else "optimizer"
+    thetas = list(it.product(AXES, GAINTYPES))
 
     # clip to shortest df
     tmax = min(df[TIME].max() for df in dfs)
@@ -479,18 +511,16 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
     for df in dfs:
         for ax, gaintype in thetas:
             colname = f"{gaintype}_{ax}"
-            #df[theta] = df[theta] - df[theta].first()
             th_fixedpoint = df[colname].to_numpy()
             th = np.exp(th_fixedpoint / (1 << 11))
             ratio = th / th[df[colname].first_valid_index()]
             components.append(pd.DataFrame({
                 "param": gaintype,
                 "axis": ax,
-                runtype: df[runtype][0],
-                LOG_RATIO_INIT: np.log2(ratio),
+                EXPERIMENT: df[EXPERIMENT][0],
+                RATIO_DEFAULT: ratio,
                 TIME: df[TIME],
             }))
-            print(components[-1])
 
     df = pd.concat(components).reset_index()
 
@@ -500,39 +530,36 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
         kind="line",
         col="axis",
         hue="param",
-        row=runtype,
+        hue_order=GAINTYPES,
+        row=EXPERIMENT,
         row_order=["weight", "fan"],
-        #col_order=thetas_pretty,
-        #col_order=thetas_pretty,
-        #col_wrap=5,
         x=TIME,
-        #y="value",
-        y=LOG_RATIO_INIT,
-        height=2.5,
-        aspect=1.75,
+        y=RATIO_DEFAULT,
+        height=2.0,
+        aspect=1.1,
     )
-
-    if style != BAD_INIT:
-        for ax in grid.axes[1]:
-            handle = shade_fan(dfs[1], ax)  # index is a hack - should inspect df
 
     grid.set_titles(template=r"\textbf{{{row_var}:\! {row_name}}}; \; {col_var}:\! {col_name}")
-    grid.set(xticks=np.linspace(0, 36, 7), xlim=[0, 36.05])
-    grid.set(yticks=[-0.5, 0, 0.5, 1.0, 1.5, 2.0], ylim=[-0.5, 2.01])
-    sns.move_legend(
-        grid,
-        loc="right",
-        bbox_to_anchor=(1.03, 0.6),
-        bbox_transform=grid.figure.transFigure
-    )
 
-    grid.axes[1, 1].legend(
-        title="fan state",
-        handles=[handle], labels=["on"],
+    grid.set(xticks=np.linspace(0, 36, 4), xlim=[0, 36.05])
+    yticks = [0.5, 1, 3, 10]
+    ylabels = ["$1/2$"] + [f"${y}$" for y in [1, 3, 10]]
+    grid.set(yscale="log", yticks=yticks, yticklabels=ylabels)
+    for ax in grid.axes.flat:
+        ax.yaxis.set_minor_locator(LogLocator(subs='all'))
+        # Show minor ticks to emphasize log scale.
+        ax.tick_params(axis="y", which="both", left=True, color="#CCC")
+
+    # Make the legend one row on bottom.
+    grid._legend.remove()
+    grid.figure.legend(
+        loc="lower center",
         frameon=False,
-        bbox_to_anchor=(1.03, 0.35),
-        bbox_transform=grid.figure.transFigure
+        title="parameter",
+        ncol=len(grid._legend.get_texts()),
     )
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.27) 
 
     grid.savefig(f"compare_params.pdf")
 
@@ -603,10 +630,10 @@ def main():
     elif style == EPISODIC:
         episodic(dfs[0], dfs[1:])
     else:
-        plot_params(dfs, style)
-        # plot_costs(dfs, style)
-        # if style != FAN:
-        #     plot_fig8(dfs, style)
+        #plot_params(dfs, style)
+        plot_costs(dfs, style)
+        #if style != FAN:
+            #plot_fig8(dfs, style)
 
 
 if __name__ == "__main__":
