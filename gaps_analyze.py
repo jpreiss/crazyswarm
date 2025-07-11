@@ -45,6 +45,7 @@ GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 GAINTYPES_DISPLAY = ["$k_i$", "$k_p$", "$k_v$", "$k_r$", r"$k_\omega$"]
 GAIN2DISPLAY = dict(zip(GAINTYPES, GAINTYPES_DISPLAY))
 AXES = ["xy", "z"]
+AXES_DISPLAY = ["$xy$", "$z$"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
 EXPERT_COLOR = "#000000"
@@ -433,7 +434,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 ratio = th / default
                 components.append(pd.DataFrame({
                     "optimizer": df["optimizer"],
-                    "axis": axname,
+                    "axis": f"${axname}$",
                     "parameter": GAIN2DISPLAY[gaintype],
                     TIME: df[TIME],
                     RATIO_DEFAULT: ratio,
@@ -449,7 +450,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             row="optimizer",
             row_order=[GAPS, EPISODIC, EPISODIC_STAR, SINGLEPOINT],
             col="axis",
-            col_order=AXES,
+            col_order=AXES_DISPLAY,
             hue="parameter",
             hue_order=GAINTYPES_DISPLAY,
             height=1.5,
@@ -534,7 +535,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
             ratio = th / th[df[colname].first_valid_index()]
             components.append(pd.DataFrame({
                 "param": GAIN2DISPLAY[gaintype],
-                "axis": ax,
+                "axis": f"${ax}$",
                 EXPERIMENT: df[EXPERIMENT][0],
                 RATIO_DEFAULT: ratio,
                 TIME: df[TIME],
