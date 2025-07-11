@@ -441,7 +441,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 }))
     df = pd.concat(components).reset_index()
 
-    if style == BAD_INIT:
+    if style != FAN:
         grid = sns.relplot(
             df,
             kind="line",
@@ -472,7 +472,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
         grid.savefig(f"{style}_params.pdf")
 
-    elif style == FAN:
+    else:
         df = df.rename(columns=dict(parameter="param"))
         grid = sns.relplot(
             df,
@@ -499,24 +499,6 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 handle = shade_fan(dfs[0], ax)
 
         grid.savefig(f"{style}_params.pdf")
-
-    else:
-        t0, t1 = dfs[0][TIME].min(), dfs[0][TIME].max()
-
-        axs[-1].legend(
-            frameon=False,
-            title="param",
-            loc="upper right",
-            bbox_to_anchor=(1.015, 1.0),
-            bbox_transform=fig.transFigure,
-        )
-
-        if style != BAD_INIT:
-            for ax in axs:
-                shade_fan(dfs[0], ax)
-                ax.legend()
-
-        fig.savefig(f"{style}_params.pdf")
 
 
 def compare_params(dfs: Sequence[pd.DataFrame], style):
