@@ -28,7 +28,7 @@ ERR = "tracking error (cm)"
 COST_CUM = "cumulative cost"
 REGRET = "regret vs. expert"
 EXPERIMENT = "scenario"
-RATIO_DEFAULT = r"value / default"
+RATIO_DEFAULT = r"value / init"
 
 # other constants
 GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
@@ -458,24 +458,28 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
         grid.savefig(f"{style}_params.pdf")
 
     elif style == FAN:
+        df = df.rename(columns=dict(parameter="param"))
         grid = sns.relplot(
             df,
             kind="line",
             x=TIME,
             y=RATIO_DEFAULT,
-            row="axis",
-            col="parameter",
-            col_order=GAINTYPES,
-            hue="parameter",
+            col="axis",
+            row="param",
+            row_order=GAINTYPES,
+            hue="param",
             hue_order=GAINTYPES,
-            height=1.5,
-            aspect=1.35,
+            height=1.35,
+            aspect=1.75,
+            legend=False,
             facet_kws=dict(sharey=False),
         )
         grid.set(xlim=[0, df[TIME].max()], xticks=[0, 70, 140])
         grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
+        grid.set(ylabel="")
         for ax in grid.axes.flat:
-            ax.axhline(1.0, color="black")
+            # zorder for main plot lines is > 1
+            ax.axhline(1.0, color="black", zorder=1)
             if style != BAD_INIT:
                 handle = shade_fan(dfs[0], ax)
 
@@ -630,8 +634,8 @@ def main():
     elif style == EPISODIC:
         episodic(dfs[0], dfs[1:])
     else:
-        #plot_params(dfs, style)
-        plot_costs(dfs, style)
+        plot_params(dfs, style)
+        #plot_costs(dfs, style)
         #if style != FAN:
             #plot_fig8(dfs, style)
 
