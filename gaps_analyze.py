@@ -35,7 +35,7 @@ EXPERT = "expert"
 DETUNE = "detune"
 GAPS = "M-GAPS"
 EPISODIC = "DiffTune"
-EPISODIC_STAR = EPISODIC + r"$\star$"
+EPISODIC_STAR = EPISODIC + r"$^{\star}$"
 SINGLEPOINT = "OPRF"
 OPT_ORDER = [EXPERT, DETUNE, GAPS, EPISODIC_STAR, EPISODIC, SINGLEPOINT]
 OPT_ORDER_COST = [DETUNE, SINGLEPOINT, EPISODIC, EPISODIC_STAR, GAPS, EXPERT]
@@ -466,7 +466,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
         sns.move_legend(
             grid,
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.0),
+            bbox_to_anchor=(0.46, 0.0),
             ncols=len(GAINTYPES),
         )
 
