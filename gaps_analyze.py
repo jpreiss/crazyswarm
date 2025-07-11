@@ -30,15 +30,22 @@ REGRET = "regret vs. expert"
 EXPERIMENT = "scenario"
 RATIO_DEFAULT = r"value / init"
 
+# optimizer names
+EXPERT = "expert"
+DETUNE = "detune"
+GAPS = "M-GAPS"
+EPISODIC = "DiffTune"
+EPISODIC_STAR = EPISODIC + r"$\star$"
+SINGLEPOINT = "OPRF"
+OPT_ORDER = [EXPERT, DETUNE, GAPS, EPISODIC_STAR, EPISODIC, SINGLEPOINT]
+OPT_ORDER_COST = [DETUNE, SINGLEPOINT, EPISODIC, EPISODIC_STAR, GAPS, EXPERT]
+
 # other constants
 GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
 AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
 EXPERT_COLOR = "#000000"
-EPISODIC_STAR = r"episodic$\star$"
-GAPS = "M-GAPS"
-OPT_ORDER = ["expert", "detune", GAPS, EPISODIC_STAR, "episodic", "singlepoint"]
 
 
 
@@ -210,7 +217,7 @@ def fan_plot_laps(dfs: Sequence[pd.DataFrame]):
         x=TIME,
         y=ERR,
         hue="optimizer",
-        hue_order=["expert", GAPS],
+        hue_order=[EXPERT, GAPS],
         palette=[EXPERT_COLOR, GAPS_COLOR],
         height=2.0,
         aspect=2.0,
@@ -240,17 +247,14 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    optimizer_styles = dict(
-        gaps=dict(color="black"),
-        expert=dict(color=(0, 0.8, 0.4)),
-        detune=dict(color=(1.0, 0.2, 0.4)),
-        singlepoint=dict(color=(0, 0.8, 1.0)),
-        episodic=dict(color=(0.6, 0.1, 0.8), linestyle=":"),
-        ogd=dict(color="black", linestyle=(0, (3, 1.0))),
-    )
-    ep_star = {**optimizer_styles["episodic"], "linestyle": None}
-    optimizer_styles[EPISODIC_STAR] = ep_star
-    optimizer_styles[GAPS] = optimizer_styles["gaps"]
+    optimizer_styles = {
+        GAPS: dict(color="black"),
+        EXPERT: dict(color=(0, 0.8, 0.4)),
+        DETUNE: dict(color=(1.0, 0.2, 0.4)),
+        SINGLEPOINT: dict(color=(0, 0.8, 1.0)),
+        EPISODIC: dict(color=(0.6, 0.1, 0.8), linestyle=":"),
+        EPISODIC_STAR: dict(color=(0.6, 0.1, 0.8), linestyle=None),
+    }
 
     # take downsampled means to smooth the plots a little.
     dfs_sampled = []
@@ -271,7 +275,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
 
     # TODO: figure out a more SQL-y way to do this. Ideally we wouldn't even
     # need the dataframe split.
-    dfs_base = [df for df in dfs if df["optimizer"].iloc[0] == "expert"]
+    dfs_base = [df for df in dfs if df["optimizer"].iloc[0] == EXPERT]
     regret_baseline = (1 / len(dfs_base)) * sum(df[COST_CUM] for df in dfs_base)
     # NOTE: below is somewhat logical but let's stick with "expected" cost
     #regret_baseline = min(*dfs_base, key=lambda df: df[COST_CUM][-1])[COST_CUM]
@@ -292,7 +296,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=ERR,
             hue="optimizer",
-            hue_order=["expert", GAPS],
+            hue_order=[EXPERT, GAPS],
             palette=[EXPERT_COLOR, GAPS_COLOR],
             height=2.0,
             aspect=2.0,
@@ -316,12 +320,12 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=REGRET,
             hue="optimizer",
-            hue_order=OPT_ORDER,
+            hue_order=OPT_ORDER_COST,
             errorbar="sd",
             legend=False,
         )
         ax_regret.set(xlim=[0, tmax])
-        for i, opt in enumerate(OPT_ORDER):
+        for i, opt in enumerate(OPT_ORDER_COST):
             z = 1000 - i  # on top of grid, etc
             opt_dfs = [df for df in dfs if df["optimizer"][0] == opt]
             label = opt
@@ -334,7 +338,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
                     x=TIME,
                     y=ERR,
                     hue="optimizer",
-                    hue_order=OPT_ORDER,
+                    hue_order=OPT_ORDER_COST,
                     legend=False,
                 )
                 # ax_err.plot(
@@ -371,7 +375,7 @@ def plot_costs(dfs: Sequence[pd.DataFrame], style):
     else:
         kws = {}
         if len(df["optimizer"].unique()) > 2:
-            kws["hue_order"] = OPT_ORDER
+            kws["hue_order"] = OPT_ORDER_COST
         if "trial" in df.columns and len(df["trial"].unique()) > 1:
             kws["errorbar"] = "sd"
 
@@ -403,14 +407,16 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
 
     sns.set_style("whitegrid")
 
-    default_df = [df for df in dfs if df["optimizer"][0] == "expert"][0]
+    default_df = [df for df in dfs if df["optimizer"][0] == EXPERT]
+    assert len(default_df) > 0
+    default_df = default_df[0]
 
     #fig, axs = plt.subplots(1, 2, figsize=(9, 2.5), constrained_layout=True, sharey=True)
 
     components = []
     styles = ["-", ":"]
     for df in dfs:
-        if df["optimizer"][0] in ["expert", "detune"]:
+        if df["optimizer"][0] in [EXPERT, DETUNE]:
             continue
         if "trial" in df.columns and df["trial"][0] != 1:
             continue
@@ -439,7 +445,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             x=TIME,
             y=RATIO_DEFAULT,
             col="optimizer",
-            col_order=[GAPS, "episodic", EPISODIC_STAR, "singlepoint"],
+            col_order=[GAPS, EPISODIC, EPISODIC_STAR, SINGLEPOINT],
             row="axis",
             row_order=AXES,
             hue="parameter",
@@ -584,7 +590,7 @@ def episodic(df_gaps, dfs_episodic):
     y = np.array([total_cost(df) for df in dfs_episodic])
     ax.plot(
         x, y,
-        label="episodic",
+        label=EPISODIC,
         color=EPISODIC_COLOR,
         marker=".",
         markersize=12,
@@ -611,12 +617,21 @@ def main():
     style = sys.argv[-1]
     assert style in STYLES
 
+    replace = {
+        "GAPS": GAPS,
+        "episodic": EPISODIC,
+        r"episodic$\star$": EPISODIC_STAR,
+        "singlepoint": SINGLEPOINT,
+    }
+
     paths = sys.argv[1:-1]
     dfs = []
     for path in paths:
         df = pd.read_json(path)
-        df["optimizer"] = df["optimizer"].str.replace("default", "expert")
-        df["optimizer"] = df["optimizer"].str.replace("GAPS", "M-GAPS")
+        opts = df["optimizer"].unique()
+        for k, v in replace.items():
+            if k in opts:
+                df["optimizer"] = df["optimizer"].str.replace(k, v)
         df[TIME] = df["t"] - df["t"][0]
         dfi = df.interpolate()
         cost = sum((dfi[f"target_{c}"] - dfi[f"pos_{c}"]) ** 2 for c in "xyz")
@@ -635,9 +650,9 @@ def main():
         episodic(dfs[0], dfs[1:])
     else:
         plot_params(dfs, style)
-        #plot_costs(dfs, style)
-        #if style != FAN:
-            #plot_fig8(dfs, style)
+        plot_costs(dfs, style)
+        if style == BAD_INIT:
+            plot_fig8(dfs, style)
 
 
 if __name__ == "__main__":
