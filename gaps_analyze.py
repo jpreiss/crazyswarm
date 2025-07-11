@@ -444,10 +444,10 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             kind="line",
             x=TIME,
             y=RATIO_DEFAULT,
-            col="optimizer",
-            col_order=[GAPS, EPISODIC, EPISODIC_STAR, SINGLEPOINT],
-            row="axis",
-            row_order=AXES,
+            row="optimizer",
+            row_order=[GAPS, EPISODIC, EPISODIC_STAR, SINGLEPOINT],
+            col="axis",
+            col_order=AXES,
             hue="parameter",
             hue_order=GAINTYPES,
             height=1.8,
@@ -460,6 +460,12 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             ax.axhline(0.5, color="black", linestyle=":")
             if style != BAD_INIT:
                 shade_fan(dfs[0], ax)
+        sns.move_legend(
+            grid,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.0),
+            ncols=len(GAINTYPES),
+        )
 
         grid.savefig(f"{style}_params.pdf")
 
@@ -482,10 +488,10 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
         )
         grid.set(xlim=[0, df[TIME].max()], xticks=[0, 70, 140])
         grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
-        grid.set(ylabel="")
         for ax in grid.axes.flat:
             # zorder for main plot lines is > 1
             ax.axhline(1.0, color="black", zorder=1)
+            ax.yaxis.set_label_coords(-0.2, 0.5)
             if style != BAD_INIT:
                 handle = shade_fan(dfs[0], ax)
 
