@@ -42,6 +42,8 @@ OPT_ORDER_COST = [DETUNE, SINGLEPOINT, EPISODIC, EPISODIC_STAR, GAPS, EXPERT]
 
 # other constants
 GAINTYPES = ["ki", "kp", "kv", "kr", "kw"]
+GAINTYPES_DISPLAY = ["$k_i$", "$k_p$", "$k_v$", "$k_r$", r"$k_\omega$"]
+GAIN2DISPLAY = dict(zip(GAINTYPES, GAINTYPES_DISPLAY))
 AXES = ["xy", "z"]
 GAPS_COLOR = "#0081EA"
 EPISODIC_COLOR = [1.0, 0.7, 0.2]
@@ -432,7 +434,7 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
                 components.append(pd.DataFrame({
                     "optimizer": df["optimizer"],
                     "axis": axname,
-                    "parameter": gaintype,
+                    "parameter": GAIN2DISPLAY[gaintype],
                     TIME: df[TIME],
                     RATIO_DEFAULT: ratio,
                 }))
@@ -449,9 +451,9 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             col="axis",
             col_order=AXES,
             hue="parameter",
-            hue_order=GAINTYPES,
-            height=1.8,
-            aspect=1.35,
+            hue_order=GAINTYPES_DISPLAY,
+            height=1.5,
+            aspect=1.75,
         )
         grid.set(xlim=[0, df[TIME].max()])
         grid.set_titles(template="{row_var}: {row_name}, {col_var}: {col_name}")
@@ -478,11 +480,11 @@ def plot_params(dfs: Sequence[pd.DataFrame], style):
             y=RATIO_DEFAULT,
             col="axis",
             row="param",
-            row_order=GAINTYPES,
+            row_order=GAINTYPES_DISPLAY,
             hue="param",
-            hue_order=GAINTYPES,
-            height=1.35,
-            aspect=1.75,
+            hue_order=GAINTYPES_DISPLAY,
+            height=1.5,
+            aspect=2.0,
             legend=False,
             facet_kws=dict(sharey=False),
         )
@@ -531,7 +533,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
             th = np.exp(th_fixedpoint / (1 << 11))
             ratio = th / th[df[colname].first_valid_index()]
             components.append(pd.DataFrame({
-                "param": gaintype,
+                "param": GAIN2DISPLAY[gaintype],
                 "axis": ax,
                 EXPERIMENT: df[EXPERIMENT][0],
                 RATIO_DEFAULT: ratio,
@@ -546,7 +548,7 @@ def compare_params(dfs: Sequence[pd.DataFrame], style):
         kind="line",
         col="axis",
         hue="param",
-        hue_order=GAINTYPES,
+        hue_order=GAINTYPES_DISPLAY,
         row=EXPERIMENT,
         row_order=["weight", "fan"],
         x=TIME,
