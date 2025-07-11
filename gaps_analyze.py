@@ -626,6 +626,7 @@ def main():
     assert style in STYLES
 
     replace = {
+        "default": EXPERT,
         "GAPS": GAPS,
         "episodic": EPISODIC,
         r"episodic$\star$": EPISODIC_STAR,
